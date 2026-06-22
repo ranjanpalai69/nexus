@@ -15,16 +15,20 @@ export async function POST(req: Request) {
 
     const { email } = schema.parse(await req.json())
 
-    // Don't reveal if user exists
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const user = users.users.find((u) => u.email === email)
+    // Look up user via profiles table (email indexed)
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single()
 
-    if (user) {
+    if (profile) {
       const code = generateOTP(6)
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
       await adminClient.from('verification_codes').insert({
         email,
+        user_id: profile.id,
         code,
         type: 'password_reset',
         expires_at: expiresAt,
@@ -33,6 +37,7 @@ export async function POST(req: Request) {
       await sendPasswordResetEmail(email, code)
     }
 
+    // Always return success to not reveal if email exists
     return NextResponse.json({ success: true })
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })

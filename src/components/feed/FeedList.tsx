@@ -10,17 +10,17 @@ import type { PostWithDetails } from '@/types/database'
 
 interface FeedListProps {
   type?: 'feed' | 'explore'
-  userId?: string
+  username?: string
 }
 
-export function FeedList({ type = 'feed', userId }: FeedListProps) {
+export function FeedList({ type = 'feed', username }: FeedListProps) {
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0.1 })
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } = useInfiniteQuery({
-    queryKey: ['posts', type, userId],
+    queryKey: ['posts', type, username],
     queryFn: async ({ pageParam }) => {
-      const url = userId
-        ? `/api/users/${userId}/posts?cursor=${pageParam || ''}`
+      const url = username
+        ? `/api/users/${username}/posts?cursor=${pageParam || ''}`
         : `/api/posts?type=${type}&cursor=${pageParam || ''}`
       const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch posts')

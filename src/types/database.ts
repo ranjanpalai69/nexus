@@ -74,6 +74,7 @@ export interface Database {
 
 export interface Profile {
   id: string
+  email: string
   username: string
   full_name: string | null
   bio: string | null
@@ -212,6 +213,7 @@ export interface Notification {
 export interface VerificationCode {
   id: string
   email: string
+  user_id: string | null
   code: string
   type: 'email_verification' | 'password_reset'
   expires_at: string

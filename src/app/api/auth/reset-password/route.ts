@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const { data: record } = await adminClient
       .from('verification_codes')
-      .select('*')
+      .select('id, user_id')
       .eq('email', email)
       .eq('code', code)
       .eq('type', 'password_reset')
@@ -24,16 +24,11 @@ export async function POST(req: Request) {
       .limit(1)
       .single()
 
-    if (!record) {
+    if (!record || !record.user_id) {
       return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 })
     }
 
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const user = users.users.find((u) => u.email === email)
-
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-
-    await adminClient.auth.admin.updateUserById(user.id, { password })
+    await adminClient.auth.admin.updateUserById(record.user_id, { password })
     await adminClient.from('verification_codes').update({ is_used: true }).eq('id', record.id)
 
     return NextResponse.json({ success: true })

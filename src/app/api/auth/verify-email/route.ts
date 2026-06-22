@@ -35,19 +35,9 @@ export async function POST(req: Request) {
       .update({ is_used: true })
       .eq('id', record.id)
 
-    // Confirm user email in Supabase Auth
-    const { data: users } = await adminClient.auth.admin.listUsers()
-    const user = users.users.find((u) => u.email === email)
-    if (user) {
-      await adminClient.auth.admin.updateUserById(user.id, { email_confirm: true })
-
-      // Get profile for welcome email
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single()
-
+    if (record.user_id) {
+      await adminClient.auth.admin.updateUserById(record.user_id, { email_confirm: true })
+      const { data: profile } = await adminClient.from('profiles').select('full_name').eq('id', record.user_id).single()
       sendWelcomeEmail(email, profile?.full_name || 'there').catch(console.error)
     }
 

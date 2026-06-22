@@ -49,7 +49,7 @@ export default async function ProfilePage({ params }: Props) {
           <TabsTrigger value="likes" className="flex-1">Likes</TabsTrigger>
         </TabsList>
         <TabsContent value="posts">
-          <FeedList type="feed" userId={profile.id} />
+          <FeedList type="feed" username={profile.username} />
         </TabsContent>
         <TabsContent value="media">
           <div className="py-8 text-center text-muted-foreground text-sm">Media grid coming soon</div>

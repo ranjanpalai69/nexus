@@ -16,8 +16,11 @@ export async function GET(req: Request) {
     if (!q || q.length < 1) return NextResponse.json({ users: [], posts: [] })
 
     const cacheKey = `search:${type}:${q.toLowerCase()}`
-    const cached = await rget(cacheKey)
-    if (cached) return NextResponse.json(JSON.parse(cached))
+    const useCache = !!process.env.REDIS_URL
+    if (useCache) {
+      const cached = await rget(cacheKey).catch(() => null)
+      if (cached) return NextResponse.json(JSON.parse(cached))
+    }
 
     const results: { users?: unknown[]; posts?: unknown[] } = {}
 
@@ -46,7 +49,7 @@ export async function GET(req: Request) {
       results.posts = posts ?? []
     }
 
-    await rset(cacheKey, JSON.stringify(results), 30) // 30s cache
+    if (useCache) rset(cacheKey, JSON.stringify(results), 30).catch(() => null)
 
     return NextResponse.json(results)
   } catch (err) {

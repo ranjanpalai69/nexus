@@ -6,10 +6,17 @@ export async function rateLimit(
   maxRequests = 10,
   windowSeconds = 60
 ): Promise<{ success: boolean; remaining: number }> {
-  const key = `rate_limit:${identifier}`
-  const count = await rincr(key, windowSeconds)
-  const remaining = Math.max(0, maxRequests - count)
-  return { success: count <= maxRequests, remaining }
+  if (!process.env.REDIS_URL) {
+    return { success: true, remaining: maxRequests }
+  }
+  try {
+    const key = `rate_limit:${identifier}`
+    const count = await rincr(key, windowSeconds)
+    const remaining = Math.max(0, maxRequests - count)
+    return { success: count <= maxRequests, remaining }
+  } catch {
+    return { success: true, remaining: maxRequests }
+  }
 }
 
 export function rateLimitResponse() {

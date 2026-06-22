@@ -53,6 +53,7 @@ export async function POST(req: Request) {
 
     await adminClient.from('verification_codes').insert({
       email: data.email,
+      user_id: authData.user.id,
       code,
       type: 'email_verification',
       expires_at: expiresAt,
