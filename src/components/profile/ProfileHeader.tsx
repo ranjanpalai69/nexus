@@ -67,20 +67,25 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
           <div className="ring-4 ring-card rounded-full">
             <UserAvatar user={profile} size="xl" showOnline className="ring-4 ring-card" />
           </div>
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2 mt-2 flex-wrap justify-end">
             {profile.is_own ? (
               <Link href="/settings/profile">
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2 h-8 sm:h-9">
                   <FontAwesomeIcon icon={faPen} className="h-3.5 w-3.5" />
-                  Edit Profile
+                  <span className="hidden xs:inline">Edit Profile</span>
+                  <span className="xs:hidden">Edit</span>
                 </Button>
               </Link>
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={handleMessage}>Message</Button>
+                <Button variant="outline" size="sm" className="h-8 sm:h-9" onClick={handleMessage}>
+                  <span className="hidden sm:inline">Message</span>
+                  <span className="sm:hidden">Msg</span>
+                </Button>
                 <Button
                   variant={following ? 'outline' : 'gradient'}
                   size="sm"
+                  className="h-8 sm:h-9"
                   onClick={handleFollow}
                   loading={followLoading}
                 >
@@ -122,18 +127,18 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
             </span>
           </div>
 
-          <div className="flex gap-5 text-sm">
+          <div className="flex gap-4 sm:gap-6 text-sm flex-wrap">
             <Link href={`/profile/${profile.username}/following`} className="hover:underline">
               <span className="font-bold">{formatNumber(profile.following_count)}</span>
-              <span className="text-muted-foreground ml-1">Following</span>
+              <span className="text-muted-foreground ml-1 text-xs sm:text-sm">Following</span>
             </Link>
             <Link href={`/profile/${profile.username}/followers`} className="hover:underline">
               <span className="font-bold">{formatNumber(followerCount)}</span>
-              <span className="text-muted-foreground ml-1">Followers</span>
+              <span className="text-muted-foreground ml-1 text-xs sm:text-sm">Followers</span>
             </Link>
             <span>
               <span className="font-bold">{formatNumber(profile.posts_count)}</span>
-              <span className="text-muted-foreground ml-1">Posts</span>
+              <span className="text-muted-foreground ml-1 text-xs sm:text-sm">Posts</span>
             </span>
           </div>
         </div>

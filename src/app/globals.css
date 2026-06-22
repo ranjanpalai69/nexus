@@ -67,13 +67,21 @@
 
 @layer base {
   * { @apply border-border; }
+  html {
+    scroll-behavior: smooth;
+    height: -webkit-fill-available;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: -webkit-fill-available;
+    overscroll-behavior-y: none;
   }
   ::selection { @apply bg-primary/30; }
+  img, video { max-width: 100%; height: auto; }
+  button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 @layer utilities {

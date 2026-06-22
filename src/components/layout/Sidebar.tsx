@@ -43,14 +43,13 @@ export function Sidebar() {
     <motion.aside
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-card px-4 py-6"
+      className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border bg-card
+        w-16 md:w-16 lg:w-64 px-2 lg:px-4 py-6 transition-all duration-300"
     >
       {/* Logo */}
-      <Link href="/feed" className="flex items-center gap-3 px-2 mb-8">
-        <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
-          <span className="text-white font-bold text-sm">N</span>
-        </div>
-        <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+      <Link href="/feed" className="flex items-center gap-3 px-1 lg:px-2 mb-8 justify-center lg:justify-start">
+        <img src="/logo.svg" alt="Nexus" className="h-9 w-9 shrink-0" />
+        <span className="hidden lg:block text-xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
           Nexus
         </span>
       </Link>
@@ -63,17 +62,19 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors relative',
+                'flex items-center gap-3 rounded-xl px-2.5 lg:px-3 py-2.5 text-sm font-medium transition-colors relative',
+                'justify-center lg:justify-start',
                 active
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
             >
               <FontAwesomeIcon icon={item.icon} className="h-4 w-4 shrink-0" />
-              {item.label}
+              <span className="hidden lg:block">{item.label}</span>
               {item.badge && unreadCount > 0 && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white font-bold">
+                <span className="lg:ml-auto absolute -top-0.5 -right-0.5 lg:static lg:flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white font-bold flex">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -83,49 +84,54 @@ export function Sidebar() {
 
         <Link
           href={`/profile/${user.username}`}
+          title="Profile"
           className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+            'flex items-center gap-3 rounded-xl px-2.5 lg:px-3 py-2.5 text-sm font-medium transition-colors',
+            'justify-center lg:justify-start',
             pathname.startsWith('/profile')
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
           <FontAwesomeIcon icon={faUser} className="h-4 w-4 shrink-0" />
-          Profile
+          <span className="hidden lg:block">Profile</span>
         </Link>
 
         <Link
           href="/explore"
+          title="Explore"
           className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+            'flex items-center gap-3 rounded-xl px-2.5 lg:px-3 py-2.5 text-sm font-medium transition-colors',
+            'justify-center lg:justify-start',
             pathname === '/explore'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
           <FontAwesomeIcon icon={faFire} className="h-4 w-4 shrink-0" />
-          Explore
+          <span className="hidden lg:block">Explore</span>
         </Link>
       </nav>
 
       {/* Create Post Button */}
       <Button
         variant="gradient"
-        className="w-full gap-2 mb-4"
+        className="w-full mb-4 gap-2 px-0 lg:px-4"
         onClick={() => setCreatePostOpen(true)}
+        title="New Post"
       >
-        <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-        New Post
+        <FontAwesomeIcon icon={faPlus} className="h-4 w-4 shrink-0" />
+        <span className="hidden lg:block">New Post</span>
       </Button>
 
       {/* User Menu */}
-      <div className="flex items-center gap-3 rounded-xl p-2 hover:bg-accent transition-colors">
-        <UserAvatar user={user} size="sm" showOnline />
-        <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-3 rounded-xl p-2 hover:bg-accent transition-colors justify-center lg:justify-start">
+        <UserAvatar user={user} size="sm" showOnline className="shrink-0" />
+        <div className="hidden lg:block flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{user.full_name || user.username}</p>
           <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
         </div>
-        <div className="flex gap-1">
+        <div className="hidden lg:flex gap-1">
           <Link href="/settings">
             <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
               <FontAwesomeIcon icon={faGear} className="h-3.5 w-3.5" />

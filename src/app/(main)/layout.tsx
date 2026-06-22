@@ -30,11 +30,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Main Content */}
-      <div className="md:ml-64">
-        <div className={`mx-auto max-w-5xl px-4 py-6 ${showRightPanel ? 'grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-6' : ''}`}>
+      <div className="md:ml-16 lg:ml-64 transition-all duration-300">
+        <div className={`mx-auto max-w-5xl px-3 sm:px-4 py-4 sm:py-6 ${showRightPanel ? 'grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-4 lg:gap-6' : ''}`}>
           <main className="min-w-0">{children}</main>
           {showRightPanel && (
-            <div className="hidden lg:block">
+            <div className="hidden xl:block">
               <RightPanel />
             </div>
           )}
@@ -49,7 +49,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* Create Post Modal */}
       <Dialog open={createPostOpen} onOpenChange={setCreatePostOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Post</DialogTitle>
           </DialogHeader>

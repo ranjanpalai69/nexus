@@ -14,10 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold">N</span>
-            </div>
-            <span className="text-2xl font-bold text-white">Nexus</span>
+            <img src="/logo-dark.svg" alt="Nexus" className="h-10" />
           </div>
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
             Connect with the world around you.
@@ -42,13 +39,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Right Auth Panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 sm:p-6 md:p-12">
         <div className="w-full max-w-md">
-          <div className="md:hidden flex items-center gap-2 mb-8">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">N</span>
-            </div>
-            <span className="text-xl font-bold">Nexus</span>
+          <div className="md:hidden flex items-center mb-8">
+            <img src="/logo-light.svg" alt="Nexus" className="h-9 dark:hidden" />
+            <img src="/logo-dark.svg" alt="Nexus" className="h-9 hidden dark:block" />
           </div>
           {children}
         </div>

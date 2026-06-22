@@ -35,7 +35,7 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
   const online = otherParticipant ? isUserOnline(otherParticipant.id) : false
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="flex h-[calc(100dvh-5rem)] md:h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
       {/* Sidebar on large screens */}
       <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
         <div className="border-b border-border p-4">
