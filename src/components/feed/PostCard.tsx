@@ -1,0 +1,181 @@
+'use client'
+import { useState } from 'react'
+import Link from 'next/link'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faHeart as faHeartSolid, faComment, faShare, faEllipsis, faTrash } from '@fortawesome/free-solid-svg-icons'
+import { faHeart as faHeartRegular, faBookmark } from '@fortawesome/free-regular-svg-icons'
+import { useAuthStore } from '@/store/authStore'
+import { UserAvatar } from '@/components/shared/UserAvatar'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { CommentSection } from '@/components/comments/CommentSection'
+import { useUIStore } from '@/store/uiStore'
+import { timeAgo, formatNumber } from '@/lib/utils/helpers'
+import { cn } from '@/lib/utils/cn'
+import { useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { motion } from 'framer-motion'
+import type { PostWithDetails } from '@/types/database'
+
+interface PostCardProps {
+  post: PostWithDetails
+  onDelete?: () => void
+}
+
+export function PostCard({ post, onDelete }: PostCardProps) {
+  const user = useAuthStore((s) => s.user)
+  const { openMediaViewer } = useUIStore()
+  const queryClient = useQueryClient()
+  const [liked, setLiked] = useState(post.is_liked ?? false)
+  const [likeCount, setLikeCount] = useState(post.likes_count)
+  const [commentCount] = useState(post.comments_count)
+  const [showComments, setShowComments] = useState(false)
+  const [liking, setLiking] = useState(false)
+  const isOwn = user?.id === post.user_id
+
+  const handleLike = async () => {
+    if (!user || liking) return
+    setLiking(true)
+    const prev = liked
+    setLiked(!prev)
+    setLikeCount((c) => c + (prev ? -1 : 1))
+    try {
+      const res = await fetch(`/api/posts/${post.id}/like`, { method: 'POST' })
+      if (!res.ok) { setLiked(prev); setLikeCount((c) => c + (prev ? 1 : -1)) }
+    } catch {
+      setLiked(prev); setLikeCount((c) => c + (prev ? 1 : -1))
+    } finally {
+      setLiking(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      if (!res.ok) { toast.error('Failed to delete'); return }
+      toast.success('Post deleted')
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+      onDelete?.()
+    } catch { toast.error('Failed') }
+  }
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${post.id}`
+    try { await navigator.clipboard.writeText(url); toast.success('Link copied!') }
+    catch { toast.error('Could not copy') }
+  }
+
+  const sortedMedia = [...(post.media ?? [])].sort((a, b) => a.order_index - b.order_index)
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-border bg-card p-4 space-y-3 hover:border-border/80 transition-colors"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <Link href={`/profile/${post.author.username}`} className="flex items-center gap-3 group">
+          <UserAvatar user={post.author} size="md" />
+          <div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-semibold group-hover:underline">{post.author.full_name || post.author.username}</span>
+              {post.author.is_verified && (
+                <span className="text-primary text-xs">✓</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">@{post.author.username} · {timeAgo(post.created_at)}</p>
+          </div>
+        </Link>
+        {isOwn && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem destructive onClick={handleDelete}>
+                <FontAwesomeIcon icon={faTrash} className="h-3.5 w-3.5" />
+                Delete post
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {/* Content */}
+      {post.content && (
+        <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+      )}
+
+      {/* Media */}
+      {sortedMedia.length > 0 && (
+        <div className={cn('grid gap-1.5 rounded-xl overflow-hidden', {
+          'grid-cols-1': sortedMedia.length === 1,
+          'grid-cols-2': sortedMedia.length === 2 || sortedMedia.length === 4,
+          'grid-cols-3': sortedMedia.length === 3 || sortedMedia.length > 4,
+        })}>
+          {sortedMedia.slice(0, 4).map((m, i) => (
+            <div
+              key={m.id}
+              className={cn('relative cursor-pointer overflow-hidden bg-muted', {
+                'aspect-video': sortedMedia.length === 1,
+                'aspect-square': sortedMedia.length > 1,
+              })}
+              onClick={() => openMediaViewer(m.url)}
+            >
+              {m.type === 'image' ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={m.url} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+              ) : (
+                <video src={m.url} className="w-full h-full object-cover" />
+              )}
+              {i === 3 && sortedMedia.length > 4 && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">+{sortedMedia.length - 4}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 pt-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('gap-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10', liked && 'text-red-500')}
+          onClick={handleLike}
+        >
+          <FontAwesomeIcon icon={liked ? faHeartSolid : faHeartRegular} className={cn('h-4 w-4', liked && 'animate-pulse')} />
+          <span className="text-xs">{formatNumber(likeCount)}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10"
+          onClick={() => setShowComments(!showComments)}
+        >
+          <FontAwesomeIcon icon={faComment} className="h-4 w-4" />
+          <span className="text-xs">{formatNumber(commentCount)}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
+          onClick={handleShare}
+        >
+          <FontAwesomeIcon icon={faShare} className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10">
+          <FontAwesomeIcon icon={faBookmark} className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Comments */}
+      {showComments && <CommentSection postId={post.id} />}
+    </motion.article>
+  )
+}
