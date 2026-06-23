@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "tsx --tsconfig tsconfig.server.json --require ./server-setup.cjs server.ts",
     "build": "next build",
-    "start": "NODE_OPTIONS=--max-old-space-size=256 NODE_ENV=production tsx server.ts",
+    "start": "NODE_OPTIONS=--max-old-space-size=300 NODE_ENV=production tsx --tsconfig tsconfig.server.json --require ./server-setup.cjs server.ts",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
