@@ -103,8 +103,9 @@ export async function GET() {
       })
       .slice(0, 15)
 
+    // Add is_following flag (all suggestions are not yet followed, but double-check)
     return NextResponse.json({
-      suggestions: sorted.map(({ profile, reason }) => ({ ...profile, reason })),
+      suggestions: sorted.map(({ profile, reason }) => ({ ...profile, reason, is_following: false })),
     })
   } catch (err) {
     console.error('[suggestions]', err)

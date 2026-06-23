@@ -33,12 +33,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ username
     const { data: posts } = await query
 
     let likedSet = new Set<string>()
+    let savedSet = new Set<string>()
     if (user && posts?.length) {
-      const { data: likes } = await supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', posts.map((p) => p.id))
+      const pids = posts.map((p) => p.id)
+      const [{ data: likes }, { data: saves }] = await Promise.all([
+        supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', pids),
+        supabase.from('post_saves').select('post_id').eq('user_id', user.id).in('post_id', pids),
+      ])
       likedSet = new Set(likes?.map((l) => l.post_id))
+      savedSet = new Set((saves ?? []).map((s) => s.post_id))
     }
 
-    const enriched = posts?.map((p) => ({ ...p, is_liked: likedSet.has(p.id) })) ?? []
+    const enriched = posts?.map((p) => ({ ...p, is_liked: likedSet.has(p.id), is_saved: savedSet.has(p.id) })) ?? []
     const nextCursor = posts && posts.length === limit ? posts[posts.length - 1].created_at : null
 
     return NextResponse.json({ posts: enriched, nextCursor })

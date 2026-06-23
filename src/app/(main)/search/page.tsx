@@ -163,7 +163,7 @@ function SearchContent() {
               </TabsList>
 
               <TabsContent value="users" className="mt-3 space-y-1">
-                {(searchData?.users ?? []).map((u: Profile) => (
+                {(searchData?.users ?? []).map((u: Profile & { is_following?: boolean }) => (
                   <Link key={u.id} href={`/profile/${u.username}`}>
                     <div className="flex items-center gap-3 rounded-xl p-3 hover:bg-accent transition-colors">
                       <UserAvatar user={u} size="md" />
@@ -175,7 +175,7 @@ function SearchContent() {
                         <p className="text-xs text-muted-foreground truncate">@{u.username} · {u.followers_count} followers</p>
                         {u.bio && <p className="text-xs text-muted-foreground truncate mt-0.5">{u.bio}</p>}
                       </div>
-                      {u.id !== currentUser?.id && <FollowButton username={u.username} />}
+                      {u.id !== currentUser?.id && <FollowButton username={u.username} initialFollowing={u.is_following} />}
                     </div>
                   </Link>
                 ))}

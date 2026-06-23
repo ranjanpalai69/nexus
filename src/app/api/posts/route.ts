@@ -72,9 +72,18 @@ export async function GET(req: Request) {
 
     const likedSet = new Set(likes?.map((l) => l.post_id))
 
+    // Fetch saved status
+    const { data: saves } = await supabase
+      .from('post_saves')
+      .select('post_id')
+      .eq('user_id', user.id)
+      .in('post_id', postIds)
+    const savedSet = new Set((saves ?? []).map((s) => s.post_id))
+
     const enriched = posts?.map((p) => ({
       ...p,
       is_liked: likedSet.has(p.id),
+      is_saved: savedSet.has(p.id),
     })) ?? []
 
     const nextCursor = posts && posts.length === limit ? posts[posts.length - 1].created_at : null

@@ -47,12 +47,13 @@ export function SignupForm() {
       if (!check.ok) { toast.error(checkResult.error); return }
 
       // 2. Sign up via Supabase — triggers free built-in confirmation email
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
       const { error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: { username: data.username, full_name: data.fullName },
-          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+          emailRedirectTo: `${appUrl}/api/auth/callback`,
         },
       })
 

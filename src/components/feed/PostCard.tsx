@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart as faHeartSolid, faComment, faShare, faEllipsis, faTrash } from '@fortawesome/free-solid-svg-icons'
-import { faHeart as faHeartRegular, faBookmark } from '@fortawesome/free-regular-svg-icons'
+import { faHeart as faHeartSolid, faComment, faShare, faEllipsis, faTrash, faBookmark as faBookmarkSolid } from '@fortawesome/free-solid-svg-icons'
+import { faHeart as faHeartRegular, faBookmark as faBookmarkRegular } from '@fortawesome/free-regular-svg-icons'
 import { useAuthStore } from '@/store/authStore'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Button } from '@/components/ui/button'
@@ -30,11 +30,13 @@ export function PostCard({ post, onDelete }: PostCardProps) {
   const [liked, setLiked] = useState(post.is_liked ?? false)
   const [likeCount, setLikeCount] = useState(post.likes_count)
   const [commentCount, setCommentCount] = useState(post.comments_count)
+  const [saved, setSaved] = useState((post as PostWithDetails & { is_saved?: boolean }).is_saved ?? false)
   const [showComments, setShowComments] = useState(false)
   const [liking, setLiking] = useState(false)
+  const [saving, setSaving] = useState(false)
   const isOwn = user?.id === post.user_id
 
-  // Real-time: join post room and handle live updates
+  // Real-time: join post room
   useEffect(() => {
     if (!user) return
     const socket = getSocket(user.id)
@@ -44,14 +46,12 @@ export function PostCard({ post, onDelete }: PostCardProps) {
       if (data.postId !== post.id || data.userId === user.id) return
       setLikeCount(data.likesCount)
     }
-
     const handleCommentCountUpdate = (data: { postId: string; commentsCount: number }) => {
       if (data.postId === post.id) setCommentCount(data.commentsCount)
     }
 
     socket.on('post:like_update', handleLikeUpdate)
     socket.on('post:comment_count_update', handleCommentCountUpdate)
-
     return () => {
       socket.emit('post:leave', { postId: post.id })
       socket.off('post:like_update', handleLikeUpdate)
@@ -70,9 +70,21 @@ export function PostCard({ post, onDelete }: PostCardProps) {
       if (!res.ok) { setLiked(prev); setLikeCount((c) => c + (prev ? 1 : -1)) }
     } catch {
       setLiked(prev); setLikeCount((c) => c + (prev ? 1 : -1))
-    } finally {
-      setLiking(false)
-    }
+    } finally { setLiking(false) }
+  }
+
+  const handleSave = async () => {
+    if (!user || saving) return
+    setSaving(true)
+    const prev = saved
+    setSaved(!prev)
+    try {
+      const res = await fetch(`/api/posts/${post.id}/save`, { method: 'POST' })
+      if (!res.ok) { setSaved(prev); toast.error('Failed to save') }
+      else toast.success(prev ? 'Post unsaved' : 'Post saved!', { id: 'save', duration: 1500 })
+    } catch {
+      setSaved(prev)
+    } finally { setSaving(false) }
   }
 
   const handleDelete = async () => {
@@ -106,9 +118,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
           <div>
             <div className="flex items-center gap-1">
               <span className="text-sm font-semibold group-hover:underline">{post.author.full_name || post.author.username}</span>
-              {post.author.is_verified && (
-                <span className="text-primary text-xs">✓</span>
-              )}
+              {post.author.is_verified && <span className="text-primary text-xs">✓</span>}
             </div>
             <p className="text-xs text-muted-foreground">@{post.author.username} · {timeAgo(post.created_at)}</p>
           </div>
@@ -197,6 +207,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
             </motion.span>
           </AnimatePresence>
         </Button>
+
         <Button
           variant="ghost"
           size="sm"
@@ -217,6 +228,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
             </motion.span>
           </AnimatePresence>
         </Button>
+
         <Button
           variant="ghost"
           size="sm"
@@ -225,9 +237,28 @@ export function PostCard({ post, onDelete }: PostCardProps) {
         >
           <FontAwesomeIcon icon={faShare} className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10">
-          <FontAwesomeIcon icon={faBookmark} className="h-4 w-4" />
-        </Button>
+
+        <motion.button
+          whileTap={{ scale: 0.85 }}
+          onClick={handleSave}
+          disabled={saving}
+          className={cn(
+            'ml-auto flex items-center justify-center h-8 w-8 rounded-lg transition-colors',
+            saved
+              ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10'
+              : 'text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10'
+          )}
+          title={saved ? 'Unsave post' : 'Save post'}
+        >
+          <motion.span
+            key={saved ? 'saved' : 'unsaved'}
+            initial={{ scale: saved ? 1.3 : 1 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          >
+            <FontAwesomeIcon icon={saved ? faBookmarkSolid : faBookmarkRegular} className="h-4 w-4" />
+          </motion.span>
+        </motion.button>
       </div>
 
       {/* Comments */}
