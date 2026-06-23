@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import { useSocket } from '@/hooks/useSocket'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
@@ -8,9 +9,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { CreatePost } from '@/components/feed/CreatePost'
 import { useUIStore } from '@/store/uiStore'
 import { usePathname } from 'next/navigation'
+import { useNotificationStore } from '@/store/notificationStore'
+import { useAuthStore } from '@/store/authStore'
 
 function SocketInitializer() {
   useSocket()
+  return null
+}
+
+// Pre-load unread notification count on any page so the badge is always correct
+function NotificationInitializer() {
+  const userId = useAuthStore((s) => s.user?.id)
+  const setNotifications = useNotificationStore((s) => s.setNotifications)
+
+  useEffect(() => {
+    if (!userId) return
+    fetch('/api/notifications')
+      .then((r) => r.json())
+      .then((d) => { if (d.notifications) setNotifications(d.notifications) })
+      .catch(() => {})
+  }, [userId, setNotifications])
+
   return null
 }
 
@@ -22,6 +41,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-background">
       <SocketInitializer />
+      <NotificationInitializer />
 
       {/* Desktop Sidebar */}
       <div className="hidden md:block">

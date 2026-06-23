@@ -20,7 +20,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
   io = new SocketServer(httpServer, {
     path: '/api/socket',
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL,
+      origin: (origin, cb) => cb(null, true), // same-origin server, allow all
       methods: ['GET', 'POST'],
       credentials: true,
     },

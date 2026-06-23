@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -10,7 +10,7 @@ import { formatNumber } from '@/lib/utils/helpers'
 import toast from 'react-hot-toast'
 import type { Profile } from '@/types/database'
 
-function FollowBtn({ username }: { username: string }) {
+function FollowBtn({ username, onFollowed }: { username: string; onFollowed: () => void }) {
   const [following, setFollowing] = useState(false)
   const [loading, setLoading] = useState(false)
   const toggle = async (e: React.MouseEvent) => {
@@ -18,8 +18,14 @@ function FollowBtn({ username }: { username: string }) {
     setLoading(true)
     try {
       const res = await fetch(`/api/users/${username}/follow`, { method: 'POST' })
-      if (res.ok) setFollowing((f) => !f)
-      else toast.error('Failed')
+      if (res.ok) {
+        if (!following) {
+          setFollowing(true)
+          onFollowed()
+        } else {
+          setFollowing(false)
+        }
+      } else toast.error('Failed')
     } catch { toast.error('Failed') }
     finally { setLoading(false) }
   }
@@ -31,16 +37,28 @@ function FollowBtn({ username }: { username: string }) {
 }
 
 export function RightPanel() {
+  const queryClient = useQueryClient()
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+
   const { data } = useQuery({
     queryKey: ['suggestions'],
     queryFn: async () => {
       const res = await fetch('/api/users/suggestions')
       return res.json()
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   })
 
-  const users: (Profile & { reason?: string })[] = data?.suggestions?.slice(0, 5) ?? []
+  const allUsers: (Profile & { reason?: string })[] = data?.suggestions ?? []
+  const users = allUsers.filter((u) => !hiddenIds.has(u.id)).slice(0, 5)
+
+  const handleFollowed = (id: string) => {
+    // Hide from panel immediately after following
+    setTimeout(() => {
+      setHiddenIds((prev) => new Set([...prev, id]))
+      queryClient.invalidateQueries({ queryKey: ['suggestions'] })
+    }, 600)
+  }
 
   return (
     <aside className="sticky top-6 flex flex-col gap-4 w-72">
@@ -54,23 +72,23 @@ export function RightPanel() {
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Who to follow</h3>
           <div className="space-y-3">
-            {users.map((user) => (
-              <div key={user.id} className="flex items-center gap-3">
-                <Link href={`/profile/${user.username}`}>
-                  <UserAvatar user={user} size="sm" />
+            {users.map((u) => (
+              <div key={u.id} className="flex items-center gap-3">
+                <Link href={`/profile/${u.username}`}>
+                  <UserAvatar user={u} size="sm" />
                 </Link>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <Link href={`/profile/${user.username}`} className="text-sm font-semibold hover:underline truncate">
-                      {user.full_name || user.username}
+                    <Link href={`/profile/${u.username}`} className="text-sm font-semibold hover:underline truncate">
+                      {u.full_name || u.username}
                     </Link>
-                    {user.is_verified && <span className="text-primary text-[10px]">✓</span>}
+                    {u.is_verified && <span className="text-primary text-[10px]">✓</span>}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
-                    {user.reason ?? `${formatNumber(user.followers_count)} followers`}
+                    {u.reason ?? `${formatNumber(u.followers_count)} followers`}
                   </p>
                 </div>
-                <FollowBtn username={user.username} />
+                <FollowBtn username={u.username} onFollowed={() => handleFollowed(u.id)} />
               </div>
             ))}
           </div>
