@@ -1,7 +1,12 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM = process.env.EMAIL_FROM || 'Nexus <onboarding@resend.dev>'
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
+
+function getFrom() {
+  return process.env.EMAIL_FROM || 'Nexus <onboarding@resend.dev>'
+}
 
 function baseTemplate(content: string) {
   return `<!DOCTYPE html>
@@ -41,7 +46,7 @@ export async function sendVerificationEmail(email: string, code: string, name?: 
     </div>
     <p style="color:#64748b;font-size:13px">If you didn't sign up for Nexus, you can safely ignore this email.</p>
   `
-  await resend.emails.send({ from: FROM, to: email, subject: 'Verify your Nexus account', html: baseTemplate(content) })
+  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Verify your Nexus account', html: baseTemplate(content) })
 }
 
 export async function sendPasswordResetEmail(email: string, code: string) {
@@ -52,7 +57,7 @@ export async function sendPasswordResetEmail(email: string, code: string) {
     </div>
     <p style="color:#64748b;font-size:13px">Didn't request this? Your account is safe — just ignore this email.</p>
   `
-  await resend.emails.send({ from: FROM, to: email, subject: 'Reset your Nexus password', html: baseTemplate(content) })
+  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Reset your Nexus password', html: baseTemplate(content) })
 }
 
 export async function sendWelcomeEmail(email: string, name: string) {
@@ -63,5 +68,5 @@ export async function sendWelcomeEmail(email: string, name: string) {
       <a href="${process.env.NEXT_PUBLIC_APP_URL}/feed" class="btn">Open Nexus →</a>
     </div>
   `
-  await resend.emails.send({ from: FROM, to: email, subject: 'Welcome to Nexus! 🚀', html: baseTemplate(content) })
+  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Welcome to Nexus! 🚀', html: baseTemplate(content) })
 }
