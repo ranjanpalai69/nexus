@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,7 +17,7 @@ const schema = z.object({
 }).refine((d) => d.password === d.confirm, { message: 'Passwords do not match', path: ['confirm'] })
 type FormData = z.infer<typeof schema>
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const params = useSearchParams()
   const email = params.get('email') ?? ''
   const prefillCode = params.get('code') ?? ''
@@ -80,5 +80,13 @@ export default function ResetPasswordPage() {
         </Button>
       </form>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }

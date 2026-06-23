@@ -16,7 +16,7 @@ export function useAuth() {
           .select('*')
           .eq('id', session.user.id)
           .single()
-        setUser(profile as Profile)
+        setUser(profile ?? null)
       } else {
         setUser(null)
       }

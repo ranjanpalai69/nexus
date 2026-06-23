@@ -30,7 +30,7 @@ export function slugify(str: string): string {
 }
 
 export function extractMentions(text: string): string[] {
-  return [...text.matchAll(/@(\w+)/g)].map(m => m[1])
+  return Array.from(text.matchAll(/@(\w+)/g)).map(m => m[1])
 }
 
 export function truncate(str: string, length: number): string {

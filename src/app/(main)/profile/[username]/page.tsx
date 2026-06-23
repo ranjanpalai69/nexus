@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 import { ProfileHeader } from '@/components/profile/ProfileHeader'
 import { FeedList } from '@/components/feed/FeedList'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'

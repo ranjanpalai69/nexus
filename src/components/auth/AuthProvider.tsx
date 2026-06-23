@@ -14,7 +14,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-        setUser(profile as Profile)
+        setUser(profile ?? null)
       } else {
         setUser(null)
       }
@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        setUser(profile as Profile)
+        setUser(profile ?? null)
       } else {
         setUser(null)
       }

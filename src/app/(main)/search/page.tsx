@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -13,12 +13,12 @@ import { useDebounce } from '@/hooks/useDebounce'
 import Link from 'next/link'
 import type { Profile, PostWithDetails } from '@/types/database'
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams()
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const debouncedQuery = useDebounce(query, 400)
 
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ['search', 'all', debouncedQuery],
     queryFn: async () => {
       if (!debouncedQuery) return { users: [], posts: [] }
@@ -83,5 +83,13 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchContent />
+    </Suspense>
   )
 }

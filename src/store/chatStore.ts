@@ -88,7 +88,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setUserOnline: (userId, online) =>
     set((state) => {
       const next = new Set(state.onlineUserIds)
-      online ? next.add(userId) : next.delete(userId)
+      if (online) next.add(userId)
+      else next.delete(userId)
       return { onlineUserIds: next }
     }),
 

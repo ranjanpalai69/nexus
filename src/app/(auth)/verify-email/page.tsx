@@ -1,10 +1,11 @@
 'use client'
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { OTPVerification } from '@/components/auth/OTPVerification'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faEnvelopeCircleCheck } from '@fortawesome/free-solid-svg-icons'
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const email = searchParams.get('email') ?? ''
 
@@ -19,5 +20,13 @@ export default function VerifyEmailPage() {
       </div>
       <OTPVerification email={email} type="email_verification" />
     </div>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }
