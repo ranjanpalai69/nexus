@@ -1,5 +1,5 @@
 'use client'
-import { use, useEffect } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
@@ -7,9 +7,11 @@ import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageThread } from '@/components/chat/MessageThread'
 import { Button } from '@/components/ui/button'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft, faCircle } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faCircle, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { useChatStore } from '@/store/chatStore'
 import { ConversationList } from '@/components/chat/ConversationList'
+import { NewMessageModal } from '@/components/chat/NewMessageModal'
+import { AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils/cn'
 import Link from 'next/link'
 import type { Profile } from '@/types/database'
@@ -39,13 +41,18 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     ?.find((p: { user_id: string }) => p.user_id !== currentUser?.id)?.profile
 
   const online = otherParticipant ? isUserOnline(otherParticipant.id) : false
+  const [showNewMessage, setShowNewMessage] = useState(false)
 
   return (
+    <>
     <div className="flex h-[calc(100dvh-5rem)] md:h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
       {/* Sidebar on large screens */}
       <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
-        <div className="border-b border-border p-4">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="font-semibold">Messages</h2>
+          <Button variant="ghost" size="icon-sm" onClick={() => setShowNewMessage(true)} title="New Message">
+            <FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" />
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           <ConversationList />
@@ -85,5 +92,9 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
         </div>
       </div>
     </div>
+    <AnimatePresence>
+      {showNewMessage && <NewMessageModal onClose={() => setShowNewMessage(false)} />}
+    </AnimatePresence>
+    </>
   )
 }

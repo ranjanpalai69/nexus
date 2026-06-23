@@ -2,8 +2,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faLink, faLocationDot, faPen } from '@fortawesome/free-solid-svg-icons'
+import { faLink, faLocationDot, faPen, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { faCalendar } from '@fortawesome/free-regular-svg-icons'
 import { useAuthStore } from '@/store/authStore'
 import { UserAvatar } from '@/components/shared/UserAvatar'
@@ -20,8 +21,10 @@ interface ProfileHeaderProps {
 export function ProfileHeader({ profile }: ProfileHeaderProps) {
   const currentUser = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [following, setFollowing] = useState(profile.is_following ?? false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [messageLoading, setMessageLoading] = useState(false)
   const [followerCount, setFollowerCount] = useState(profile.followers_count)
 
   const handleFollow = async () => {
@@ -32,10 +35,16 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
     setFollowerCount((c) => c + (prev ? -1 : 1))
     try {
       const res = await fetch(`/api/users/${profile.username}/follow`, { method: 'POST' })
-      if (!res.ok) { setFollowing(prev); setFollowerCount((c) => c + (prev ? 1 : -1)); toast.error('Failed') }
-      else queryClient.invalidateQueries({ queryKey: ['profile', profile.username] })
+      if (!res.ok) {
+        setFollowing(prev)
+        setFollowerCount((c) => c + (prev ? 1 : -1))
+        toast.error('Failed to follow')
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['profile', profile.username] })
+      }
     } catch {
-      setFollowing(prev); setFollowerCount((c) => c + (prev ? 1 : -1))
+      setFollowing(prev)
+      setFollowerCount((c) => c + (prev ? 1 : -1))
     } finally {
       setFollowLoading(false)
     }
@@ -43,13 +52,25 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
 
   const handleMessage = async () => {
     if (!currentUser) return
-    const res = await fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ participantId: profile.id }),
-    })
-    const data = await res.json()
-    if (data.conversation) window.location.href = `/messages/${data.conversation.id}`
+    setMessageLoading(true)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantId: profile.id }),
+      })
+      if (!res.ok) { toast.error('Could not open conversation'); return }
+      const data = await res.json()
+      if (data.conversation?.id) {
+        router.push(`/messages/${data.conversation.id}`)
+      } else {
+        toast.error('Could not start conversation')
+      }
+    } catch {
+      toast.error('Failed to open message')
+    } finally {
+      setMessageLoading(false)
+    }
   }
 
   return (
@@ -78,9 +99,15 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
               </Link>
             ) : (
               <>
-                <Button variant="outline" size="sm" className="h-8 sm:h-9" onClick={handleMessage}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-8 sm:h-9"
+                  onClick={handleMessage}
+                  loading={messageLoading}
+                >
+                  <FontAwesomeIcon icon={faPaperPlane} className="h-3 w-3" />
                   <span className="hidden sm:inline">Message</span>
-                  <span className="sm:hidden">Msg</span>
                 </Button>
                 <Button
                   variant={following ? 'outline' : 'gradient'}

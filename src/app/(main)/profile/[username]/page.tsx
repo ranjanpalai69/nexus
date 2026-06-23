@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileHeader } from '@/components/profile/ProfileHeader'
 import { FeedList } from '@/components/feed/FeedList'
+import { MediaGrid } from '@/components/profile/MediaGrid'
+import { LikedPosts } from '@/components/profile/LikedPosts'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { Profile } from '@/types/database'
 
@@ -55,10 +57,10 @@ export default async function ProfilePage({ params }: Props) {
           <FeedList type="feed" username={profile.username} />
         </TabsContent>
         <TabsContent value="media">
-          <div className="py-8 text-center text-muted-foreground text-sm">Media grid coming soon</div>
+          <MediaGrid username={profile.username} />
         </TabsContent>
         <TabsContent value="likes">
-          <div className="py-8 text-center text-muted-foreground text-sm">Liked posts coming soon</div>
+          <LikedPosts username={profile.username} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
 import { useAuthStore } from '@/store/authStore'
@@ -12,8 +12,9 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { formatMessageTime, bytesToHuman, secondsToTime } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faDownload, faPlay } from '@fortawesome/free-solid-svg-icons'
+import { faDownload, faPlay, faReply } from '@fortawesome/free-solid-svg-icons'
 import { useUIStore } from '@/store/uiStore'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { MessageWithSender } from '@/types/database'
 
 interface MessageThreadProps {
@@ -24,8 +25,10 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
   const user = useAuthStore((s) => s.user)
   const { messages, setMessages } = useChatStore()
   const { openMediaViewer } = useUIStore()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<{ id: string; content: string | null; senderName: string } | null>(null)
+  const isNearBottomRef = useRef(true)
   const { ref: topRef, inView: topInView } = useInView()
 
   const conversationMessages = messages[conversationId] ?? []
@@ -34,24 +37,44 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     queryKey: ['messages', conversationId],
     queryFn: async ({ pageParam }) => {
       const res = await fetch(`/api/messages/${conversationId}?cursor=${pageParam || ''}`)
-      const data = await res.json()
-      return data
+      return res.json()
     },
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: Infinity, // socket handles new messages; avoid overwriting store on refetch
   })
 
+  // Seed store from query on initial load only (don't overwrite socket-appended messages)
   useEffect(() => {
-    if (data) {
+    if (data?.pages) {
       const all: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
       setMessages(conversationId, all)
     }
   }, [data, conversationId, setMessages])
 
+  // Track whether user is near bottom to control auto-scroll
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+  }, [])
+
+  // Auto-scroll to bottom only when near bottom (new message arrives) or initial load
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: conversationMessages.length <= 50 ? 'instant' : 'smooth' })
+    }
   }, [conversationMessages.length])
 
+  // Scroll to bottom on initial load
+  useEffect(() => {
+    if (!isLoading) {
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      isNearBottomRef.current = true
+    }
+  }, [isLoading])
+
+  // Join conversation room for socket events
   useEffect(() => {
     if (!user) return
     const socket = getSocket(user.id)
@@ -63,96 +86,160 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     if (topInView && hasNextPage && !isFetchingNextPage) fetchNextPage()
   }, [topInView, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const renderMessage = (msg: MessageWithSender) => {
+  const renderMessage = (msg: MessageWithSender, idx: number) => {
     const isMine = msg.sender_id === user?.id
     const sender = msg.sender
+    const prevMsg = conversationMessages[idx - 1]
+    const showAvatar = !isMine && (!prevMsg || prevMsg.sender_id !== msg.sender_id)
+    const showTimestamp = !prevMsg ||
+      new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000
 
     return (
-      <div key={msg.id} className={cn('flex gap-2 group', isMine && 'flex-row-reverse')}>
-        {!isMine && sender && <UserAvatar user={sender} size="xs" className="mt-auto mb-1 shrink-0" />}
-        <div className={cn('max-w-[70%] space-y-1', isMine && 'items-end flex flex-col')}>
-          {msg.reply_to && (
-            <div className={cn('rounded-lg border-l-4 bg-muted/50 px-2 py-1 text-xs opacity-80', isMine ? 'border-l-primary-foreground' : 'border-l-primary')}>
-              <p className="font-semibold">{(msg.reply_to as MessageWithSender).sender?.username}</p>
-              <p className="truncate">{msg.reply_to.content || '[media]'}</p>
-            </div>
-          )}
-          <div
-            className={cn(
-              'rounded-2xl px-3 py-2 text-sm',
-              isMine
-                ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
-                : 'rounded-tl-sm bg-muted text-foreground'
-            )}
-          >
-            {msg.type === 'text' && <p className="whitespace-pre-wrap">{msg.content}</p>}
+      <motion.div
+        key={msg.id}
+        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.15 }}
+      >
+        {showTimestamp && (
+          <div className="flex justify-center my-3">
+            <span className="text-[10px] text-muted-foreground bg-muted rounded-full px-3 py-0.5">
+              {formatMessageTime(msg.created_at)}
+            </span>
+          </div>
+        )}
 
-            {(msg.type === 'image') && msg.media_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={msg.media_url}
-                alt="Image"
-                className="rounded-xl max-w-full cursor-pointer hover:opacity-90 transition-opacity"
-                style={{ maxHeight: 300 }}
-                onClick={() => openMediaViewer(msg.media_url!)}
-              />
+        <div className={cn('flex gap-2 group', isMine ? 'flex-row-reverse' : 'flex-row', 'mb-0.5')}>
+          {/* Avatar placeholder to align messages */}
+          <div className="w-7 shrink-0">
+            {showAvatar && !isMine && sender && (
+              <UserAvatar user={sender} size="xs" className="mt-auto" />
             )}
+          </div>
 
-            {msg.type === 'video' && msg.media_url && (
-              <video src={msg.media_url} controls className="rounded-xl max-w-full" style={{ maxHeight: 300 }} />
-            )}
-
-            {msg.type === 'audio' && msg.media_url && (
-              <div className="flex items-center gap-2 min-w-[200px]">
-                <button className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faPlay} className="h-3 w-3" />
-                </button>
-                <audio src={msg.media_url} controls className="flex-1 h-6" />
-                <span className="text-xs opacity-75">{msg.duration_seconds ? secondsToTime(msg.duration_seconds) : ''}</span>
+          <div className={cn('max-w-[72%] space-y-0.5', isMine && 'items-end flex flex-col')}>
+            {msg.reply_to && (
+              <div className={cn(
+                'rounded-xl border-l-4 bg-muted/60 px-2.5 py-1.5 text-xs opacity-80 mb-0.5',
+                isMine ? 'border-l-indigo-400' : 'border-l-primary'
+              )}>
+                <p className="font-semibold text-primary/80">
+                  {(msg.reply_to as MessageWithSender).sender?.username ?? 'Unknown'}
+                </p>
+                <p className="truncate text-muted-foreground">{msg.reply_to.content || '[media]'}</p>
               </div>
             )}
 
-            {msg.type === 'file' && msg.media_url && (
-              <a href={msg.media_url} download={msg.file_name} className="flex items-center gap-2 hover:opacity-80">
-                <FontAwesomeIcon icon={faDownload} className="h-4 w-4" />
-                <div>
-                  <p className="font-medium text-xs truncate max-w-40">{msg.file_name}</p>
-                  {msg.file_size && <p className="text-[10px] opacity-70">{bytesToHuman(msg.file_size)}</p>}
+            <div className={cn(
+              'rounded-2xl px-3.5 py-2 text-sm break-words',
+              isMine
+                ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
+                : 'rounded-tl-sm bg-muted text-foreground'
+            )}>
+              {msg.type === 'text' && (
+                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              )}
+
+              {msg.type === 'image' && msg.media_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={msg.media_url}
+                  alt="Image"
+                  className="rounded-xl max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ maxHeight: 280 }}
+                  onClick={() => openMediaViewer(msg.media_url!)}
+                />
+              )}
+
+              {msg.type === 'video' && msg.media_url && (
+                <video src={msg.media_url} controls className="rounded-xl max-w-full" style={{ maxHeight: 280 }} />
+              )}
+
+              {msg.type === 'audio' && msg.media_url && (
+                <div className="flex items-center gap-2 min-w-[180px]">
+                  <button className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <FontAwesomeIcon icon={faPlay} className="h-3 w-3" />
+                  </button>
+                  <audio src={msg.media_url} controls className="flex-1 h-6" />
+                  {msg.duration_seconds ? (
+                    <span className="text-xs opacity-75 shrink-0">{secondsToTime(msg.duration_seconds)}</span>
+                  ) : null}
                 </div>
-              </a>
-            )}
+              )}
+
+              {msg.type === 'file' && msg.media_url && (
+                <a href={msg.media_url} download={msg.file_name} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                  <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <FontAwesomeIcon icon={faDownload} className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-xs truncate max-w-40">{msg.file_name}</p>
+                    {msg.file_size && <p className="text-[10px] opacity-70">{bytesToHuman(msg.file_size)}</p>}
+                  </div>
+                </a>
+              )}
+            </div>
           </div>
-          <div className={cn('flex items-center gap-1', isMine && 'justify-end')}>
-            <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.created_at)}</span>
-          </div>
-        </div>
-        {!isMine && (
+
+          {/* Reply button — appears on hover */}
           <button
-            onClick={() => setReplyTo({ id: msg.id, content: msg.content, senderName: sender?.username ?? '' })}
-            className="opacity-0 group-hover:opacity-100 text-xs text-muted-foreground hover:text-foreground transition-opacity mt-auto mb-2"
+            onClick={() => setReplyTo({ id: msg.id, content: msg.content, senderName: sender?.username ?? 'You' })}
+            className={cn(
+              'opacity-0 group-hover:opacity-100 self-end mb-1 text-muted-foreground hover:text-foreground transition-all',
+              isMine ? 'mr-1' : 'ml-1'
+            )}
+            title="Reply"
           >
-            Reply
+            <FontAwesomeIcon icon={faReply} className={cn('h-3.5 w-3.5', isMine && 'scale-x-[-1]')} />
           </button>
-        )}
-      </div>
+        </div>
+      </motion.div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <div ref={topRef} />
-        {isFetchingNextPage && <div className="flex justify-center"><LoadingSpinner size="sm" /></div>}
+    <div className="flex flex-col h-full min-h-0">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 scroll-smooth"
+      >
+        <div ref={topRef} className="h-1" />
+        {isFetchingNextPage && (
+          <div className="flex justify-center py-2"><LoadingSpinner size="sm" /></div>
+        )}
         {isLoading ? (
-          <div className="flex justify-center py-8"><LoadingSpinner /></div>
+          <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        ) : conversationMessages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <p className="text-sm">No messages yet</p>
+            <p className="text-xs mt-1 opacity-60">Say hello 👋</p>
+          </div>
         ) : (
-          conversationMessages.map(renderMessage)
+          conversationMessages.map((msg, idx) => renderMessage(msg, idx))
         )}
         <TypingIndicator conversationId={conversationId} />
-        <div ref={bottomRef} />
+        <div ref={bottomRef} className="h-1" />
       </div>
 
-      <div className="shrink-0 border-t border-border p-4">
+      <div className="shrink-0 border-t border-border p-3">
+        <AnimatePresence>
+          {replyTo && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-2 rounded-xl border-l-4 border-l-primary bg-muted/50 px-3 py-2 mb-2 overflow-hidden"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-primary">{replyTo.senderName}</p>
+                <p className="text-xs text-muted-foreground truncate">{replyTo.content || '[media]'}</p>
+              </div>
+              <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground text-xs shrink-0">✕</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <MessageInput
           conversationId={conversationId}
           replyTo={replyTo}
