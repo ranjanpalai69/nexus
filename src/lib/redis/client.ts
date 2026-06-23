@@ -7,7 +7,8 @@ declare global {
 
 function getRedisClient() {
   if (!global._redisClient) {
-    const client = createClient({ url: process.env.REDIS_URL })
+    const url = process.env.REDIS_URL
+    const client = url ? createClient({ url }) : createClient()
     client.on('error', (err) => console.error('[Redis]', err))
     global._redisClient = client
   }
@@ -21,7 +22,6 @@ export async function getRedis() {
   return redis
 }
 
-// Helpers
 export async function rget(key: string) {
   const r = await getRedis()
   return r.get(key)
