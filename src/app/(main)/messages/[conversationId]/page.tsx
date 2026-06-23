@@ -14,12 +14,12 @@ import { NewMessageModal } from '@/components/chat/NewMessageModal'
 import { AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils/cn'
 import Link from 'next/link'
-import type { Profile } from '@/types/database'
+import type { ConversationWithDetails, Profile } from '@/types/database'
 
 export default function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = use(params)
   const currentUser = useAuthStore((s) => s.user)
-  const { isUserOnline, setActiveConversation, clearConversationUnread } = useChatStore()
+  const { setConversations, isUserOnline, setActiveConversation, clearConversationUnread } = useChatStore()
   const router = useRouter()
 
   useEffect(() => {
@@ -28,17 +28,24 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     return () => setActiveConversation(null)
   }, [conversationId, setActiveConversation, clearConversationUnread])
 
-  const { data } = useQuery({
-    queryKey: ['conversation', conversationId],
+  // Share the same query key as ConversationList so React Query deduplicates the request.
+  // This avoids a second /api/messages call just to get participant info for the header.
+  const { data: conversationsData } = useQuery<ConversationWithDetails[]>({
+    queryKey: ['conversations'],
     queryFn: async () => {
       const res = await fetch('/api/messages')
       const d = await res.json()
-      return d.conversations?.find((c: { id: string }) => c.id === conversationId)
+      const convs: ConversationWithDetails[] = d.conversations ?? []
+      setConversations(convs)
+      return convs
     },
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
   })
 
-  const otherParticipant: Profile | undefined = data?.participants
-    ?.find((p: { user_id: string }) => p.user_id !== currentUser?.id)?.profile
+  const conversation = conversationsData?.find((c) => c.id === conversationId)
+  const otherParticipant: Profile | undefined = conversation?.participants
+    ?.find((p) => p.user_id !== currentUser?.id)?.profile
 
   const online = otherParticipant ? isUserOnline(otherParticipant.id) : false
   const [showNewMessage, setShowNewMessage] = useState(false)

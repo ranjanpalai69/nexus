@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
 import { useAuthStore } from '@/store/authStore'
 import { useChatStore } from '@/store/chatStore'
@@ -25,6 +25,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
   const user = useAuthStore((s) => s.user)
   const { messages, setMessages } = useChatStore()
   const { openMediaViewer } = useUIStore()
+  const queryClient = useQueryClient()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<{ id: string; content: string | null; senderName: string } | null>(null)
@@ -37,19 +38,30 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     queryKey: ['messages', conversationId],
     queryFn: async ({ pageParam }) => {
       const res = await fetch(`/api/messages/${conversationId}?cursor=${pageParam || ''}`)
+      if (!res.ok) throw new Error('Failed to fetch messages')
       return res.json()
     },
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    staleTime: Infinity, // socket handles new messages; avoid overwriting store on refetch
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   })
 
-  // Seed store from query on initial load only (don't overwrite socket-appended messages)
+  // Force a fresh fetch every time this conversation is opened so we get authoritative DB data.
+  // staleTime:Infinity prevents background re-fetches while chatting, but we still want
+  // fresh data on each mount (catches messages that arrived while the user was away).
   useEffect(() => {
-    if (data?.pages) {
-      const all: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
-      setMessages(conversationId, all)
-    }
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
+  }, [conversationId, queryClient])
+
+  // Seed store from fresh DB data. Guard: never overwrite existing messages with an empty
+  // result (prevents flash of "No messages" while the background refetch is in-flight).
+  useEffect(() => {
+    if (!data?.pages) return
+    const all: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
+    const currentCount = useChatStore.getState().messages[conversationId]?.length ?? 0
+    if (all.length === 0 && currentCount > 0) return
+    setMessages(conversationId, all)
   }, [data, conversationId, setMessages])
 
   // Track whether user is near bottom to control auto-scroll
@@ -74,12 +86,19 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     }
   }, [isLoading])
 
-  // Join conversation room for socket events
+  // Join conversation room and re-join after socket reconnects
   useEffect(() => {
     if (!user) return
     const socket = getSocket(user.id)
     socket.emit('conversation:join', conversationId)
-    return () => { socket.emit('conversation:leave', conversationId) }
+
+    const onReconnect = () => socket.emit('conversation:join', conversationId)
+    socket.on('connect', onReconnect)
+
+    return () => {
+      socket.emit('conversation:leave', conversationId)
+      socket.off('connect', onReconnect)
+    }
   }, [conversationId, user])
 
   useEffect(() => {
