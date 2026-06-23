@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { adminClient } from '@/lib/supabase/server'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
+import { emitToUser } from '@/lib/socket/server'
 
 const createSchema = z.object({
   content: z.string().max(2000).optional(),
@@ -131,6 +132,22 @@ export async function POST(req: Request) {
         })))
         .select()
       media = mediaRows ?? []
+    }
+
+    // Send mention notifications
+    if (body.content) {
+      const mentions = [...new Set([...body.content.matchAll(/@(\w+)/g)].map((m) => m[1]))]
+      if (mentions.length) {
+        const { data: mentionedUsers } = await adminClient
+          .from('profiles').select('id, username').in('username', mentions).neq('id', user.id)
+        for (const mu of mentionedUsers ?? []) {
+          const { data: n } = await adminClient.from('notifications').insert({
+            recipient_id: mu.id, actor_id: user.id,
+            type: 'mention', reference_id: post.id, reference_type: 'post',
+          }).select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`).single()
+          if (n) emitToUser(mu.id, 'notification:new', n)
+        }
+      }
     }
 
     return NextResponse.json({ post: { ...post, media, is_liked: false } }, { status: 201 })

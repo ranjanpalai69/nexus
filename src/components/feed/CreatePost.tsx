@@ -14,6 +14,7 @@ import toast from 'react-hot-toast'
 import EmojiPickerComponent, { type EmojiClickData } from 'emoji-picker-react'
 import { cn } from '@/lib/utils/cn'
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MAX_FILE_SIZE } from '@/lib/utils/helpers'
+import { MentionTextarea } from '@/components/shared/MentionTextarea'
 
 interface UploadedMedia {
   url: string
@@ -121,13 +122,14 @@ export function CreatePost({ onSuccess }: { onSuccess?: () => void }) {
       <div className="flex gap-3">
         <UserAvatar user={user} size="md" className="shrink-0 mt-1" />
         <div className="flex-1 space-y-3">
-          <Textarea
-            ref={textareaRef}
+          <MentionTextarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="What's on your mind?"
-            className="min-h-[100px] border-0 bg-transparent text-base resize-none p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            onChange={setContent}
+            placeholder="What's on your mind? Use @ to mention someone"
+            rows={4}
             maxLength={2000}
+            className="min-h-[100px] text-base"
+            autoFocus
           />
 
           {/* Media Preview */}

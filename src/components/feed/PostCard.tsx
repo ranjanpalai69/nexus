@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getSocket } from '@/lib/socket/client'
+import { RenderWithMentions } from '@/components/shared/MentionTextarea'
 import type { PostWithDetails } from '@/types/database'
 
 interface PostCardProps {
@@ -142,7 +143,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
 
       {/* Content */}
       {post.content && (
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+        <RenderWithMentions text={post.content} className="text-sm leading-relaxed whitespace-pre-wrap" />
       )}
 
       {/* Media */}

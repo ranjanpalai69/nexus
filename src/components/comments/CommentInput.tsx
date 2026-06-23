@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-regular-svg-icons'
 import EmojiPickerComponent, { type EmojiClickData } from 'emoji-picker-react'
+import { MentionTextarea } from '@/components/shared/MentionTextarea'
 import toast from 'react-hot-toast'
 
 interface CommentInputProps {
@@ -46,14 +47,14 @@ export function CommentInput({ postId, parentId, onSuccess, onCancel, placeholde
       <UserAvatar user={user} size="sm" className="mt-1 shrink-0" />
       <div className="flex-1 relative">
         <div className="flex items-end gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 focus-within:border-primary transition-colors">
-          <textarea
+          <MentionTextarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit() } }}
-            placeholder={placeholder || (parentId ? 'Write a reply...' : 'Write a comment...')}
+            placeholder={placeholder || (parentId ? 'Write a reply... (@mention someone)' : 'Write a comment... (@mention someone)')}
             rows={1}
-            className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             maxLength={1000}
+            className="flex-1 text-sm"
           />
           <div className="flex items-center gap-1 shrink-0">
             <div className="relative">

@@ -122,6 +122,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
       if (notification) emitToUser(notifyUserId, 'notification:new', notification)
     }
 
+    // Send mention notifications
+    const mentions = [...new Set([...content.matchAll(/@(\w+)/g)].map((m) => m[1]))]
+    if (mentions.length) {
+      const { data: mentionedUsers } = await adminClient
+        .from('profiles').select('id, username').in('username', mentions).neq('id', user.id)
+      for (const mu of mentionedUsers ?? []) {
+        if (mu.id === notifyUserId) continue // already notified as post/comment owner
+        const { data: n } = await adminClient.from('notifications').insert({
+          recipient_id: mu.id, actor_id: user.id,
+          type: 'mention', reference_id: comment.id, reference_type: 'comment',
+        }).select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`).single()
+        if (n) emitToUser(mu.id, 'notification:new', n)
+      }
+    }
+
     return NextResponse.json({ comment: enrichedComment }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
