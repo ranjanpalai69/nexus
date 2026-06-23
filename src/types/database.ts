@@ -517,6 +517,7 @@ export interface MessageWithSender extends Message {
 
 export interface NotificationWithActor extends AppNotification {
   actor?: Profile
+  post_id?: string | null // populated for comment/reply/like_comment/mention notifications
 }
 
 // Keep Notification as alias for backwards compatibility

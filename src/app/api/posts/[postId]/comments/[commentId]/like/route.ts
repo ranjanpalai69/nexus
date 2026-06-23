@@ -57,7 +57,7 @@ export async function POST(
         .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`)
         .single()
 
-      if (notification) emitToUser(commentData.user_id, 'notification:new', notification)
+      if (notification) emitToUser(commentData.user_id, 'notification:new', { ...notification, post_id: postId })
     }
 
     return NextResponse.json({ liked: true })

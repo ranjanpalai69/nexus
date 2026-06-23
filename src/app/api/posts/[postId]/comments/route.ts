@@ -119,7 +119,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
         .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`)
         .single()
 
-      if (notification) emitToUser(notifyUserId, 'notification:new', notification)
+      // Include post_id so the client can navigate to the correct post
+      if (notification) emitToUser(notifyUserId, 'notification:new', { ...notification, post_id: postId })
     }
 
     // Send mention notifications
@@ -133,7 +134,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
           recipient_id: mu.id, actor_id: user.id,
           type: 'mention', reference_id: comment.id, reference_type: 'comment',
         }).select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`).single()
-        if (n) emitToUser(mu.id, 'notification:new', n)
+        if (n) emitToUser(mu.id, 'notification:new', { ...n, post_id: postId })
       }
     }
 

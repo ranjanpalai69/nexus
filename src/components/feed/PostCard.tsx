@@ -22,9 +22,10 @@ import type { PostWithDetails } from '@/types/database'
 interface PostCardProps {
   post: PostWithDetails
   onDelete?: () => void
+  defaultOpenComments?: boolean
 }
 
-export function PostCard({ post, onDelete }: PostCardProps) {
+export function PostCard({ post, onDelete, defaultOpenComments = false }: PostCardProps) {
   const user = useAuthStore((s) => s.user)
   const { openMediaViewer } = useUIStore()
   const queryClient = useQueryClient()
@@ -32,7 +33,7 @@ export function PostCard({ post, onDelete }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.likes_count)
   const [commentCount, setCommentCount] = useState(post.comments_count)
   const [saved, setSaved] = useState((post as PostWithDetails & { is_saved?: boolean }).is_saved ?? false)
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(defaultOpenComments)
   const [liking, setLiking] = useState(false)
   const [saving, setSaving] = useState(false)
   const isOwn = user?.id === post.user_id

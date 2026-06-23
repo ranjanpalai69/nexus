@@ -15,10 +15,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from('notifications')
-      .select(`
-        *,
-        actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)
-      `)
+      .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`)
       .eq('recipient_id', user.id)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -28,8 +25,32 @@ export async function GET(req: Request) {
     const { data: notifications, error } = await query
     if (error) throw error
 
-    const nextCursor = notifications && notifications.length === limit ? notifications[notifications.length - 1].created_at : null
-    return NextResponse.json({ notifications, nextCursor })
+    // For comment-type notifications, reference_id is the comment ID.
+    // We need the parent post_id so the click navigates to the right post.
+    const commentNotifs = (notifications ?? []).filter(
+      (n) => n.reference_type === 'comment' && n.reference_id
+    )
+
+    let commentPostMap: Record<string, string> = {}
+    if (commentNotifs.length) {
+      const { data: comments } = await adminClient
+        .from('comments')
+        .select('id, post_id')
+        .in('id', commentNotifs.map((n) => n.reference_id))
+      commentPostMap = Object.fromEntries((comments ?? []).map((c) => [c.id, c.post_id]))
+    }
+
+    const enriched = (notifications ?? []).map((n) => ({
+      ...n,
+      post_id: n.reference_type === 'comment' ? (commentPostMap[n.reference_id] ?? null) : null,
+    }))
+
+    const nextCursor =
+      notifications && notifications.length === limit
+        ? notifications[notifications.length - 1].created_at
+        : null
+
+    return NextResponse.json({ notifications: enriched, nextCursor })
   } catch (err) {
     console.error('[notifications GET]', err)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })
