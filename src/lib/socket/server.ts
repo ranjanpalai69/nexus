@@ -64,6 +64,15 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.leave(`conversation:${conversationId}`)
     })
 
+    // ─── Post rooms (real-time likes, comments) ───────────────
+    socket.on('post:join', ({ postId }: { postId: string }) => {
+      socket.join(`post:${postId}`)
+    })
+
+    socket.on('post:leave', ({ postId }: { postId: string }) => {
+      socket.leave(`post:${postId}`)
+    })
+
     // ─── Typing indicators ───────────────────────────────────
     socket.on('typing:start', ({ conversationId }: { conversationId: string }) => {
       socket.to(`conversation:${conversationId}`).emit('typing:start', { userId, conversationId })
@@ -178,4 +187,8 @@ async function setUserOnlineStatus(userId: string, online: boolean) {
 
 export function emitToUser(userId: string, event: string, data: unknown) {
   io?.to(`user:${userId}`).emit(event, data)
+}
+
+export function emitToPost(postId: string, event: string, data: unknown) {
+  io?.to(`post:${postId}`).emit(event, data)
 }

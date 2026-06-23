@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils/cn'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useChatStore } from '@/store/chatStore'
 import { useUIStore } from '@/store/uiStore'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Button } from '@/components/ui/button'
@@ -20,8 +21,8 @@ import { motion } from 'framer-motion'
 const navItems = [
   { href: '/feed', icon: faHouse, label: 'Home' },
   { href: '/search', icon: faMagnifyingGlass, label: 'Search' },
-  { href: '/notifications', icon: faBell, label: 'Notifications', badge: true },
-  { href: '/messages', icon: faMessage, label: 'Messages' },
+  { href: '/notifications', icon: faBell, label: 'Notifications', badge: 'notifications' },
+  { href: '/messages', icon: faMessage, label: 'Messages', badge: 'messages' },
 ]
 
 export function Sidebar() {
@@ -29,6 +30,9 @@ export function Sidebar() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const unreadCount = useNotificationStore((s) => s.unreadCount)
+  const unreadMessages = useChatStore((s) =>
+    s.conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0)
+  )
   const { setCreatePostOpen } = useUIStore()
   const supabase = createClient()
 
@@ -72,9 +76,14 @@ export function Sidebar() {
             >
               <FontAwesomeIcon icon={item.icon} className="h-4 w-4 shrink-0" />
               <span className="hidden lg:block">{item.label}</span>
-              {item.badge && unreadCount > 0 && (
+              {item.badge === 'notifications' && unreadCount > 0 && (
                 <span className="lg:ml-auto absolute -top-0.5 -right-0.5 lg:static lg:flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white font-bold flex">
                   {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+              {item.badge === 'messages' && unreadMessages > 0 && (
+                <span className="lg:ml-auto absolute -top-0.5 -right-0.5 lg:static lg:flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-500 px-1 text-xs text-white font-bold flex">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}
             </Link>

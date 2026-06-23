@@ -1,5 +1,5 @@
 'use client'
-import { use } from 'react'
+import { use, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
@@ -17,8 +17,14 @@ import type { Profile } from '@/types/database'
 export default function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = use(params)
   const currentUser = useAuthStore((s) => s.user)
-  const { isUserOnline } = useChatStore()
+  const { isUserOnline, setActiveConversation, clearConversationUnread } = useChatStore()
   const router = useRouter()
+
+  useEffect(() => {
+    setActiveConversation(conversationId)
+    clearConversationUnread(conversationId)
+    return () => setActiveConversation(null)
+  }, [conversationId, setActiveConversation, clearConversationUnread])
 
   const { data } = useQuery({
     queryKey: ['conversation', conversationId],

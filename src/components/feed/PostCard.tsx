@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart as faHeartSolid, faComment, faShare, faEllipsis, faTrash } from '@fortawesome/free-solid-svg-icons'
@@ -14,7 +14,8 @@ import { timeAgo, formatNumber } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { getSocket } from '@/lib/socket/client'
 import type { PostWithDetails } from '@/types/database'
 
 interface PostCardProps {
@@ -28,10 +29,35 @@ export function PostCard({ post, onDelete }: PostCardProps) {
   const queryClient = useQueryClient()
   const [liked, setLiked] = useState(post.is_liked ?? false)
   const [likeCount, setLikeCount] = useState(post.likes_count)
-  const [commentCount] = useState(post.comments_count)
+  const [commentCount, setCommentCount] = useState(post.comments_count)
   const [showComments, setShowComments] = useState(false)
   const [liking, setLiking] = useState(false)
   const isOwn = user?.id === post.user_id
+
+  // Real-time: join post room and handle live updates
+  useEffect(() => {
+    if (!user) return
+    const socket = getSocket(user.id)
+    socket.emit('post:join', { postId: post.id })
+
+    const handleLikeUpdate = (data: { postId: string; userId: string; liked: boolean; likesCount: number }) => {
+      if (data.postId !== post.id || data.userId === user.id) return
+      setLikeCount(data.likesCount)
+    }
+
+    const handleCommentCountUpdate = (data: { postId: string; commentsCount: number }) => {
+      if (data.postId === post.id) setCommentCount(data.commentsCount)
+    }
+
+    socket.on('post:like_update', handleLikeUpdate)
+    socket.on('post:comment_count_update', handleCommentCountUpdate)
+
+    return () => {
+      socket.emit('post:leave', { postId: post.id })
+      socket.off('post:like_update', handleLikeUpdate)
+      socket.off('post:comment_count_update', handleCommentCountUpdate)
+    }
+  }, [user, post.id])
 
   const handleLike = async () => {
     if (!user || liking) return
@@ -149,8 +175,27 @@ export function PostCard({ post, onDelete }: PostCardProps) {
           className={cn('gap-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10', liked && 'text-red-500')}
           onClick={handleLike}
         >
-          <FontAwesomeIcon icon={liked ? faHeartSolid : faHeartRegular} className={cn('h-4 w-4', liked && 'animate-pulse')} />
-          <span className="text-xs">{formatNumber(likeCount)}</span>
+          <motion.span
+            key={liked ? 'liked' : 'unliked'}
+            initial={{ scale: liked ? 1.4 : 1 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+            className="flex items-center"
+          >
+            <FontAwesomeIcon icon={liked ? faHeartSolid : faHeartRegular} className="h-4 w-4" />
+          </motion.span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={likeCount}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              className="text-xs tabular-nums"
+            >
+              {formatNumber(likeCount)}
+            </motion.span>
+          </AnimatePresence>
         </Button>
         <Button
           variant="ghost"
@@ -159,7 +204,18 @@ export function PostCard({ post, onDelete }: PostCardProps) {
           onClick={() => setShowComments(!showComments)}
         >
           <FontAwesomeIcon icon={faComment} className="h-4 w-4" />
-          <span className="text-xs">{formatNumber(commentCount)}</span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={commentCount}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              className="text-xs tabular-nums"
+            >
+              {formatNumber(commentCount)}
+            </motion.span>
+          </AnimatePresence>
         </Button>
         <Button
           variant="ghost"

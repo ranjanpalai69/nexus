@@ -23,15 +23,35 @@ export async function POST(_req: Request, { params }: { params: Promise<{ userna
       .single()
 
     if (existing) {
-      // Unfollow
       await adminClient.from('follows').delete().eq('follower_id', user.id).eq('following_id', target.id)
+
+      // Emit updated follower counts to both parties
+      const { data: targetProfile } = await adminClient.from('profiles').select('followers_count').eq('id', target.id).single()
+      const { data: myProfile } = await adminClient.from('profiles').select('following_count').eq('id', user.id).single()
+
+      emitToUser(target.id, 'user:follow_update', {
+        type: 'unfollow', followerId: user.id, followersCount: targetProfile?.followers_count ?? 0,
+      })
+      emitToUser(user.id, 'user:follow_update', {
+        type: 'unfollow', followingId: target.id, followingCount: myProfile?.following_count ?? 0,
+      })
+
       return NextResponse.json({ following: false })
     }
 
-    // Follow
     await adminClient.from('follows').insert({ follower_id: user.id, following_id: target.id })
 
-    // Notify
+    const { data: targetProfile } = await adminClient.from('profiles').select('followers_count').eq('id', target.id).single()
+    const { data: myProfile } = await adminClient.from('profiles').select('following_count').eq('id', user.id).single()
+
+    emitToUser(target.id, 'user:follow_update', {
+      type: 'follow', followerId: user.id, followersCount: targetProfile?.followers_count ?? 0,
+    })
+    emitToUser(user.id, 'user:follow_update', {
+      type: 'follow', followingId: target.id, followingCount: myProfile?.following_count ?? 0,
+    })
+
+    // Notification
     const { data: notification } = await adminClient
       .from('notifications')
       .insert({

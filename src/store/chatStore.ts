@@ -16,6 +16,8 @@ interface ChatState {
   setConversations: (convs: ConversationWithDetails[]) => void
   addConversation: (conv: ConversationWithDetails) => void
   updateConversation: (id: string, updates: Partial<ConversationWithDetails>) => void
+  clearConversationUnread: (id: string) => void
+  incrementConversationUnread: (id: string) => void
   setActiveConversation: (id: string | null) => void
   setMessages: (conversationId: string, messages: MessageWithSender[]) => void
   addMessage: (conversationId: string, message: MessageWithSender) => void
@@ -43,6 +45,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateConversation: (id, updates) =>
     set((state) => ({
       conversations: state.conversations.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+    })),
+
+  clearConversationUnread: (id) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)),
+    })),
+
+  incrementConversationUnread: (id) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === id ? { ...c, unread_count: (c.unread_count ?? 0) + 1 } : c
+      ),
     })),
 
   setActiveConversation: (id) => set({ activeConversationId: id }),

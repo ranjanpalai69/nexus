@@ -5,21 +5,31 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHouse, faMagnifyingGlass, faBell, faMessage, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
 import { cn } from '@/lib/utils/cn'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useChatStore } from '@/store/chatStore'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
 
 const navItems = [
   { href: '/feed', icon: faHouse, label: 'Home' },
   { href: '/search', icon: faMagnifyingGlass, label: 'Search' },
-  { href: '/notifications', icon: faBell, label: 'Alerts', badge: true },
-  { href: '/messages', icon: faMessage, label: 'Messages' },
+  { href: '/notifications', icon: faBell, label: 'Alerts', badge: 'notifications' as const },
+  { href: '/messages', icon: faMessage, label: 'Messages', badge: 'messages' as const },
 ]
 
 export function MobileNav() {
   const pathname = usePathname()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
+  const unreadMessages = useChatStore((s) =>
+    s.conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0)
+  )
   const { setCreatePostOpen } = useUIStore()
   const user = useAuthStore((s) => s.user)
+
+  const getBadgeCount = (badge?: 'notifications' | 'messages') => {
+    if (badge === 'notifications') return unreadCount
+    if (badge === 'messages') return unreadMessages
+    return 0
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-card/95 backdrop-blur-md px-1 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] md:hidden">
@@ -49,6 +59,7 @@ export function MobileNav() {
 
       {navItems.slice(2).map((item) => {
         const active = pathname.startsWith(item.href)
+        const count = getBadgeCount(item.badge)
         return (
           <Link
             key={item.href}
@@ -60,9 +71,12 @@ export function MobileNav() {
           >
             <FontAwesomeIcon icon={item.icon} className="h-5 w-5" />
             <span className="text-[9px] font-medium leading-none">{item.label}</span>
-            {item.badge && unreadCount > 0 && (
-              <span className="absolute top-0.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] text-white font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
+            {count > 0 && (
+              <span className={cn(
+                'absolute top-0.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[9px] text-white font-bold',
+                item.badge === 'notifications' ? 'bg-red-500' : 'bg-indigo-500'
+              )}>
+                {count > 9 ? '9+' : count}
               </span>
             )}
           </Link>

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, adminClient } from '@/lib/supabase/server'
-import { emitToUser } from '@/lib/socket/server'
+import { emitToUser, emitToPost } from '@/lib/socket/server'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 
 const schema = z.object({
@@ -83,6 +83,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
 
     if (error) throw error
 
+    const enrichedComment = { ...comment, is_liked: false }
+
+    // Broadcast new comment to all viewers of this post
+    emitToPost(postId, 'post:comment_new', {
+      postId,
+      comment: enrichedComment,
+      parentId: parentId ?? null,
+    })
+
+    // Broadcast updated comment count
+    const { data: postData } = await adminClient.from('posts').select('comments_count').eq('id', postId).single()
+    emitToPost(postId, 'post:comment_count_update', {
+      postId,
+      commentsCount: postData?.comments_count ?? 0,
+    })
+
     // Notify post owner or parent comment owner
     const { data: post } = await adminClient.from('posts').select('user_id').eq('id', postId).single()
     const notifyUserId = parentId
@@ -106,7 +122,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
       if (notification) emitToUser(notifyUserId, 'notification:new', notification)
     }
 
-    return NextResponse.json({ comment: { ...comment, is_liked: false } }, { status: 201 })
+    return NextResponse.json({ comment: enrichedComment }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
     console.error('[comments POST]', err)
