@@ -5,9 +5,7 @@ import { z } from 'zod'
 import { createClient, adminClient } from '@/lib/supabase/server'
 
 const createSchema = z.object({
-  participantId: z.string().uuid(), // For DM
-  message: z.string().min(1).max(2000).optional(),
-  type: z.enum(['text', 'image', 'video', 'audio', 'file']).default('text'),
+  participantId: z.string().uuid(),
 })
 
 export async function GET() {
@@ -16,7 +14,16 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: conversations, error } = await supabase
+    // Use adminClient to bypass the self-referential RLS on conversation_participants
+    const { data: userParticipants } = await adminClient
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', user.id)
+
+    const conversationIds = userParticipants?.map((p) => p.conversation_id) ?? []
+    if (!conversationIds.length) return NextResponse.json({ conversations: [] })
+
+    const { data: conversations, error } = await adminClient
       .from('conversations')
       .select(`
         *,
@@ -25,33 +32,32 @@ export async function GET() {
           profile:profiles!conversation_participants_user_id_fkey(id, username, full_name, avatar_url, online_status, last_seen)
         )
       `)
+      .in('id', conversationIds)
       .order('last_message_at', { ascending: false })
 
     if (error) throw error
 
-    // Get unread counts
-    const convIds = conversations?.map((c) => c.id) ?? []
+    // Get unread counts in parallel
+    const { data: participantData } = await adminClient
+      .from('conversation_participants')
+      .select('conversation_id, last_read_at')
+      .eq('user_id', user.id)
+      .in('conversation_id', conversationIds)
+
     const unreadCounts: Record<string, number> = {}
-    if (convIds.length) {
-      const { data: participantData } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', user.id)
-        .in('conversation_id', convIds)
-
-      for (const p of participantData ?? []) {
-        const { count } = await supabase
+    await Promise.all(
+      (participantData ?? []).map(async (p) => {
+        const { count } = await adminClient
           .from('messages')
-          .select('id', { count: 'exact' })
+          .select('id', { count: 'exact', head: true })
           .eq('conversation_id', p.conversation_id)
-          .gt('created_at', p.last_read_at)
+          .gt('created_at', p.last_read_at ?? '1970-01-01T00:00:00Z')
           .neq('sender_id', user.id)
-          .then((r) => ({ count: r.count ?? 0 }))
-        unreadCounts[p.conversation_id] = count
-      }
-    }
+        unreadCounts[p.conversation_id] = count ?? 0
+      })
+    )
 
-    const enriched = conversations?.map((c) => ({
+    const enriched = (conversations ?? []).map((c) => ({
       ...c,
       unread_count: unreadCounts[c.id] ?? 0,
     }))
@@ -71,13 +77,13 @@ export async function POST(req: Request) {
 
     const { participantId } = createSchema.parse(await req.json())
 
-    // Find shared non-group conversations
-    const { data: myConvs } = await supabase
+    // Find existing DM between these two users (adminClient bypasses RLS)
+    const { data: myConvs } = await adminClient
       .from('conversation_participants')
       .select('conversation_id')
       .eq('user_id', user.id)
 
-    const { data: theirConvs } = await supabase
+    const { data: theirConvs } = await adminClient
       .from('conversation_participants')
       .select('conversation_id')
       .eq('user_id', participantId)
@@ -86,7 +92,7 @@ export async function POST(req: Request) {
     const shared = theirConvs?.find((c) => myIds.has(c.conversation_id))
 
     if (shared) {
-      const { data: conv } = await supabase
+      const { data: conv } = await adminClient
         .from('conversations')
         .select(`*, participants:conversation_participants(*, profile:profiles!conversation_participants_user_id_fkey(id, username, full_name, avatar_url, online_status, last_seen))`)
         .eq('id', shared.conversation_id)
@@ -109,7 +115,7 @@ export async function POST(req: Request) {
       { conversation_id: conv.id, user_id: participantId },
     ])
 
-    const { data: fullConv } = await supabase
+    const { data: fullConv } = await adminClient
       .from('conversations')
       .select(`*, participants:conversation_participants(*, profile:profiles!conversation_participants_user_id_fkey(id, username, full_name, avatar_url, online_status, last_seen))`)
       .eq('id', conv.id)

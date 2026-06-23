@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 export const STORAGE_BUCKET = 'media'
 
-export type UploadFolder = 'avatars' | 'covers' | 'posts' | 'chat' | 'audio'
+export type UploadFolder = 'avatars' | 'covers' | 'posts' | 'chat' | 'audio' | 'stories'
 
 export async function generateUploadUrl(
   folder: UploadFolder,

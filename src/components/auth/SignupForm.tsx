@@ -46,9 +46,9 @@ export function SignupForm() {
       const checkResult = await check.json()
       if (!check.ok) { toast.error(checkResult.error); return }
 
-      // 2. Sign up via Supabase — triggers free built-in confirmation email
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-      const { error } = await supabase.auth.signUp({
+      // 2. Sign up via Supabase
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '')
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -59,8 +59,14 @@ export function SignupForm() {
 
       if (error) { toast.error(error.message); return }
 
-      toast.success('Check your email and click the confirmation link!')
-      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
+      if (signUpData.session) {
+        // Email confirmation is disabled — user is signed in immediately
+        toast.success('Account created! Welcome to Nexus 🎉')
+        router.push('/feed')
+      } else {
+        toast.success('Check your email and click the confirmation link!')
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
+      }
     } catch {
       toast.error('Registration failed. Please try again.')
     } finally {

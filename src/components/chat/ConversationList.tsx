@@ -23,7 +23,8 @@ export function ConversationList() {
       setConversations(data.conversations ?? [])
       return data.conversations
     },
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
   })
 
   if (isLoading) return <PageLoader />

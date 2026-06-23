@@ -56,6 +56,8 @@ export function useSocket() {
     // ── Notifications ─────────────────────────────────────────────
     const handleNotification = (notification: NotificationWithActor) => {
       useNotificationStore.getState().addNotification(notification)
+      // Also invalidate the notifications query so the page list updates
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     }
 
     // ── Follow updates ────────────────────────────────────────────
@@ -74,6 +76,29 @@ export function useSocket() {
       }
     }
 
+    // ── Conversation updates (from personal room — for unread badge) ──
+    const handleConversationUpdated = (data: {
+      conversationId: string
+      lastMessageAt: string
+      lastMessagePreview: string
+      senderId: string
+    }) => {
+      const store = useChatStore.getState()
+      const exists = store.conversations.some((c) => c.id === data.conversationId)
+      if (exists) {
+        store.updateConversation(data.conversationId, {
+          last_message_at: data.lastMessageAt,
+          last_message_preview: data.lastMessagePreview,
+        })
+        if (data.senderId !== userId) {
+          store.incrementConversationUnread(data.conversationId)
+        }
+      } else {
+        // New conversation not yet in store — refetch the list
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      }
+    }
+
     socket.on('user:online', handleOnline)
     socket.on('user:offline', handleOffline)
     socket.on('message:new', handleMessage)
@@ -81,6 +106,7 @@ export function useSocket() {
     socket.on('typing:stop', handleTypingStop)
     socket.on('notification:new', handleNotification)
     socket.on('user:follow_update', handleFollowUpdate)
+    socket.on('conversation:updated', handleConversationUpdated)
 
     return () => {
       socket.off('user:online', handleOnline)
@@ -90,6 +116,7 @@ export function useSocket() {
       socket.off('typing:stop', handleTypingStop)
       socket.off('notification:new', handleNotification)
       socket.off('user:follow_update', handleFollowUpdate)
+      socket.off('conversation:updated', handleConversationUpdated)
     }
   }, [userId, queryClient])
 

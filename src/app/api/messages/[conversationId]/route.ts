@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, adminClient } from '@/lib/supabase/server'
-import { emitToConversation } from '@/lib/socket/server'
+import { emitToConversation, emitToUser } from '@/lib/socket/server'
 
 export async function GET(req: Request, { params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = await params
@@ -11,13 +11,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Verify participant
-    const { data: participant } = await supabase
+    // Use adminClient to bypass self-referential RLS on conversation_participants
+    const { data: participant } = await adminClient
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const cursor = searchParams.get('cursor')
     const limit = 50
 
-    let query = supabase
+    let query = adminClient
       .from('messages')
       .select(`
         *,
@@ -67,9 +67,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: participant } = await supabase
-      .from('conversation_participants').select('id')
-      .eq('conversation_id', conversationId).eq('user_id', user.id).single()
+    // Use adminClient to bypass self-referential RLS
+    const { data: participant } = await adminClient
+      .from('conversation_participants')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .maybeSingle()
     if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { content, type = 'text', mediaUrl, fileName, fileSize, durationSeconds, replyToId, tempId } = await req.json()
@@ -104,8 +108,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
       last_message_preview: type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`,
     }).eq('id', conversationId)
 
-    // Broadcast real-time to all in conversation room
+    // Broadcast to everyone in the conversation room (includes sender for replaceTempMessage)
     emitToConversation(conversationId, 'message:new', { ...message, tempId })
+
+    // Also notify recipients via their personal rooms (for unread badge when not in conversation)
+    const { data: otherParticipants } = await adminClient
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', user.id)
+
+    const conversationUpdate = {
+      conversationId,
+      lastMessageAt: message.created_at,
+      lastMessagePreview: type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`,
+      senderId: user.id,
+    }
+
+    otherParticipants?.forEach(({ user_id }) => {
+      emitToUser(user_id, 'conversation:updated', conversationUpdate)
+    })
 
     return NextResponse.json({ message }, { status: 201 })
   } catch (err) {

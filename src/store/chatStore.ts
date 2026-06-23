@@ -16,6 +16,7 @@ interface ChatState {
   setConversations: (convs: ConversationWithDetails[]) => void
   addConversation: (conv: ConversationWithDetails) => void
   updateConversation: (id: string, updates: Partial<ConversationWithDetails>) => void
+  updateOrAddConversation: (id: string, updates: Partial<ConversationWithDetails>) => void
   clearConversationUnread: (id: string) => void
   incrementConversationUnread: (id: string) => void
   setActiveConversation: (id: string | null) => void
@@ -47,6 +48,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: state.conversations.map((c) => (c.id === id ? { ...c, ...updates } : c)),
     })),
 
+  updateOrAddConversation: (id, updates) =>
+    set((state) => {
+      const exists = state.conversations.some((c) => c.id === id)
+      if (exists) {
+        return {
+          conversations: state.conversations.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+        }
+      }
+      // Conversation not in store yet — will be loaded on next conversations fetch
+      // Just invalidate by not touching state; caller handles re-fetch
+      return state
+    }),
+
   clearConversationUnread: (id) =>
     set((state) => ({
       conversations: state.conversations.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)),
@@ -65,12 +79,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({ messages: { ...state.messages, [conversationId]: messages } })),
 
   addMessage: (conversationId, message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [conversationId]: [...(state.messages[conversationId] ?? []), message],
-      },
-    })),
+    set((state) => {
+      const existing = state.messages[conversationId] ?? []
+      // Deduplicate: skip if same real message already in store
+      if (existing.some((m) => m.id === message.id)) return state
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...existing, message],
+        },
+      }
+    }),
 
   updateMessage: (conversationId, messageId, updates) =>
     set((state) => ({

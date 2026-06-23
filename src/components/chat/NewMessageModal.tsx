@@ -1,12 +1,14 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faXmark, faSearch, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
+import { useChatStore } from '@/store/chatStore'
 import type { Profile } from '@/types/database'
 
 interface NewMessageModalProps {
@@ -19,6 +21,8 @@ export function NewMessageModal({ onClose }: NewMessageModalProps) {
   const [searching, setSearching] = useState(false)
   const [starting, setStarting] = useState<string | null>(null)
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const addConversation = useChatStore((s) => s.addConversation)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -60,6 +64,9 @@ export function NewMessageModal({ onClose }: NewMessageModalProps) {
       if (!res.ok) { toast.error('Could not start conversation'); return }
       const data = await res.json()
       if (data.conversation?.id) {
+        // Add to store immediately so it appears in the list without waiting for refetch
+        addConversation(data.conversation)
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
         router.push(`/messages/${data.conversation.id}`)
         onClose()
       }

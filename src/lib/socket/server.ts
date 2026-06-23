@@ -1,42 +1,50 @@
 // @ts-nocheck
 import type { Server as HTTPServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
-import { createClient } from 'redis'
+import { createClient as createRedisClient } from 'redis'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { adminClient } from '@/lib/supabase/server'
 
-let io: SocketServer | null = null
+// Use global so the io instance is shared across Next.js bundle boundaries
+// (server.ts entry point and API route bundles are separate webpack modules)
+declare global {
+  // eslint-disable-next-line no-var
+  var _socketIO: SocketServer | undefined
+}
 
 // Online presence: userId -> Set of socketIds
 const onlineUsers = new Map<string, Set<string>>()
 
-export function getIO() {
-  return io
+function getIO(): SocketServer | null {
+  return global._socketIO ?? null
 }
 
 export async function initSocketServer(httpServer: HTTPServer) {
-  if (io) return io
+  if (global._socketIO) return global._socketIO
 
-  io = new SocketServer(httpServer, {
+  const io = new SocketServer(httpServer, {
     path: '/api/socket',
     cors: {
-      origin: (origin, cb) => cb(null, true), // same-origin server, allow all
+      origin: (origin, cb) => cb(null, true),
       methods: ['GET', 'POST'],
       credentials: true,
     },
     transports: ['websocket', 'polling'],
   })
 
+  // Store in global immediately so API routes can access it
+  global._socketIO = io
+
   // Redis adapter for horizontal scaling
   if (process.env.REDIS_URL) {
     try {
-      const pubClient = createClient({ url: process.env.REDIS_URL })
+      const pubClient = createRedisClient({ url: process.env.REDIS_URL })
       const subClient = pubClient.duplicate()
       await Promise.all([pubClient.connect(), subClient.connect()])
       io.adapter(createAdapter(pubClient, subClient))
       console.log('[Socket.io] Redis adapter connected')
     } catch (err) {
-      console.warn('[Socket.io] Redis adapter failed, falling back to memory:', err)
+      console.warn('[Socket.io] Redis adapter failed, using memory adapter:', err)
     }
   }
 
@@ -51,9 +59,8 @@ export async function initSocketServer(httpServer: HTTPServer) {
     if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set())
     onlineUsers.get(userId)!.add(socket.id)
 
-    // Mark online in DB
     setUserOnlineStatus(userId, true)
-    io!.emit('user:online', { userId })
+    io.emit('user:online', { userId })
 
     // ─── Conversation rooms ───────────────────────────────────
     socket.on('conversation:join', (conversationId: string) => {
@@ -82,84 +89,6 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId, conversationId })
     })
 
-    // ─── Message events ──────────────────────────────────────
-    socket.on('message:send', async (data: {
-      conversationId: string
-      tempId: string
-      content?: string
-      type: string
-      mediaUrl?: string
-      fileName?: string
-      fileSize?: number
-      durationSeconds?: number
-      replyToId?: string
-    }) => {
-      try {
-        const { data: message, error } = await adminClient
-          .from('messages')
-          .insert({
-            conversation_id: data.conversationId,
-            sender_id: userId,
-            content: data.content,
-            type: data.type as never,
-            media_url: data.mediaUrl,
-            file_name: data.fileName,
-            file_size: data.fileSize,
-            duration_seconds: data.durationSeconds,
-            reply_to_id: data.replyToId,
-          })
-          .select(`
-            *,
-            sender:profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
-          `)
-          .single()
-
-        if (error) throw error
-
-        // Update conversation last_message
-        await adminClient
-          .from('conversations')
-          .update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: data.type === 'text'
-              ? (data.content?.slice(0, 80) ?? '')
-              : `[${data.type}]`,
-          })
-          .eq('id', data.conversationId)
-
-        // Broadcast to conversation participants
-        io!.to(`conversation:${data.conversationId}`).emit('message:new', {
-          ...message,
-          tempId: data.tempId,
-        })
-
-        // Push notifications to offline participants
-        const { data: participants } = await adminClient
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', data.conversationId)
-          .neq('user_id', userId)
-
-        participants?.forEach(({ user_id }) => {
-          if (!onlineUsers.has(user_id)) {
-            io!.to(`user:${user_id}`).emit('notification:new', {
-              type: 'message',
-              actor_id: userId,
-              reference_id: data.conversationId,
-              reference_type: 'conversation',
-            })
-          }
-        })
-      } catch {
-        socket.emit('message:error', { tempId: data.tempId, error: 'Failed to send' })
-      }
-    })
-
-    socket.on('message:read', async ({ conversationId, messageId }: { conversationId: string, messageId: string }) => {
-      await adminClient.from('message_reads').upsert({ message_id: messageId, user_id: userId })
-      socket.to(`conversation:${conversationId}`).emit('message:read', { messageId, userId })
-    })
-
     // ─── Disconnect ──────────────────────────────────────────
     socket.on('disconnect', () => {
       const sockets = onlineUsers.get(userId)
@@ -168,7 +97,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
         if (sockets.size === 0) {
           onlineUsers.delete(userId)
           setUserOnlineStatus(userId, false)
-          io!.emit('user:offline', { userId, lastSeen: new Date().toISOString() })
+          io.emit('user:offline', { userId, lastSeen: new Date().toISOString() })
         }
       }
     })
@@ -186,13 +115,13 @@ async function setUserOnlineStatus(userId: string, online: boolean) {
 }
 
 export function emitToUser(userId: string, event: string, data: unknown) {
-  io?.to(`user:${userId}`).emit(event, data)
+  getIO()?.to(`user:${userId}`).emit(event, data)
 }
 
 export function emitToPost(postId: string, event: string, data: unknown) {
-  io?.to(`post:${postId}`).emit(event, data)
+  getIO()?.to(`post:${postId}`).emit(event, data)
 }
 
 export function emitToConversation(conversationId: string, event: string, data: unknown) {
-  io?.to(`conversation:${conversationId}`).emit(event, data)
+  getIO()?.to(`conversation:${conversationId}`).emit(event, data)
 }

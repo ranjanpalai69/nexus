@@ -10,7 +10,7 @@ const schema = z.object({
   fileName: z.string().min(1).max(255),
   contentType: z.string().min(1),
   fileSize: z.number().positive().max(MAX_FILE_SIZE),
-  folder: z.enum(['avatars', 'covers', 'posts', 'chat', 'audio']),
+  folder: z.enum(['avatars', 'covers', 'posts', 'chat', 'audio', 'stories']),
 })
 
 const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_AUDIO_TYPES, 'application/pdf', 'application/zip', 'application/octet-stream']
