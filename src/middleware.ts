@@ -18,6 +18,11 @@ const PUBLIC_PATHS = [
 ]
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Health check must bypass Supabase auth call so Render detects the port instantly
+  if (pathname === '/api/health') return NextResponse.next()
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -38,7 +43,6 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
   const isAuthPage = ['/login', '/signup', '/verify-email', '/forgot-password', '/reset-password'].some(
