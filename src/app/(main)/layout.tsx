@@ -14,7 +14,7 @@ import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons'
+import { faGear, faRightFromBracket, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -35,9 +35,14 @@ function MobileHeader() {
     router.push('/login')
   }
   return (
-    <header className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card/95 backdrop-blur-md border-b border-border h-13">
+    <header className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-3 py-2 bg-card/95 backdrop-blur-md border-b border-border">
       <Link href="/feed"><Logo size="sm" variant="full" /></Link>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
+        <Link href="/search">
+          <Button variant="ghost" size="icon-sm" title="Search">
+            <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
+          </Button>
+        </Link>
         <ThemeToggle />
         <Link href="/settings">
           <Button variant="ghost" size="icon-sm" title="Settings">
