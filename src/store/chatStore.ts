@@ -87,7 +87,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: {
         ...state.messages,
         [conversationId]: (state.messages[conversationId] ?? []).map((m) =>
-          (m as MessageWithSender & { tempId?: string }).tempId === tempId ? message : m
+          m.id === tempId ? message : m
         ),
       },
     })),

@@ -8,13 +8,48 @@ import { MediaViewer } from '@/components/shared/MediaViewer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CreatePost } from '@/components/feed/CreatePost'
 import { useUIStore } from '@/store/uiStore'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useAuthStore } from '@/store/authStore'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { Logo } from '@/components/shared/Logo'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons'
+import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 function SocketInitializer() {
   useSocket()
   return null
+}
+
+// Mobile-only top header with logo, theme, settings, and logout
+function MobileHeader() {
+  const router = useRouter()
+  const supabase = createClient()
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    toast.success('Signed out')
+    router.push('/login')
+  }
+  return (
+    <header className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card/95 backdrop-blur-md border-b border-border h-13">
+      <Link href="/feed"><Logo size="sm" variant="full" /></Link>
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <Link href="/settings">
+          <Button variant="ghost" size="icon-sm" title="Settings">
+            <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+          </Button>
+        </Link>
+        <Button variant="ghost" size="icon-sm" onClick={handleLogout} title="Logout">
+          <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
+        </Button>
+      </div>
+    </header>
+  )
 }
 
 // Pre-load unread notification count on any page so the badge is always correct
@@ -43,6 +78,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <SocketInitializer />
       <NotificationInitializer />
 
+      {/* Mobile Top Header */}
+      <MobileHeader />
+
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar />
@@ -50,7 +88,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* Main Content */}
       <div className="md:ml-16 lg:ml-64 transition-all duration-300">
-        <div className={`mx-auto max-w-5xl px-3 sm:px-4 py-4 sm:py-6 ${showRightPanel ? 'grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-4 lg:gap-6' : ''}`}>
+        <div className={`mx-auto max-w-5xl px-3 sm:px-4 pt-16 pb-4 md:py-6 sm:pt-16 md:pt-6 ${showRightPanel ? 'grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-4 lg:gap-6' : ''}`}>
           <main className="min-w-0">{children}</main>
           {showRightPanel && (
             <div className="hidden xl:block">

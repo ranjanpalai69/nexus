@@ -46,14 +46,14 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
     typingTimeoutRef.current = setTimeout(() => emitTyping(false), 2000)
   }
 
-  const sendMessage = useCallback((payload: {
+  const sendMessage = useCallback(async (payload: {
     content?: string; type?: string; mediaUrl?: string;
     fileName?: string; fileSize?: number; durationSeconds?: number; replyToId?: string
   }) => {
-    if (!socket || !user) return
+    if (!user) return
     const tempId = uuidv4()
 
-    // Optimistic update
+    // Optimistic update — show message immediately
     addMessage(conversationId, {
       id: tempId,
       conversation_id: conversationId,
@@ -65,24 +65,32 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
       file_size: payload.fileSize ?? null,
       duration_seconds: payload.durationSeconds ?? null,
       is_deleted: false,
-      reply_to_id: payload.replyToId ?? null,
+      reply_to_id: payload.replyToId ?? replyTo?.id ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sender: user,
     })
 
-    socket.emit('message:send', {
-      conversationId,
-      tempId,
-      content: payload.content,
-      type: payload.type ?? 'text',
-      mediaUrl: payload.mediaUrl,
-      fileName: payload.fileName,
-      fileSize: payload.fileSize,
-      durationSeconds: payload.durationSeconds,
-      replyToId: payload.replyToId ?? replyTo?.id,
-    })
-  }, [socket, user, addMessage, conversationId, replyTo])
+    try {
+      const res = await fetch(`/api/messages/${conversationId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: payload.content,
+          type: payload.type ?? 'text',
+          mediaUrl: payload.mediaUrl,
+          fileName: payload.fileName,
+          fileSize: payload.fileSize,
+          durationSeconds: payload.durationSeconds,
+          replyToId: payload.replyToId ?? replyTo?.id,
+          tempId,
+        }),
+      })
+      if (!res.ok) toast.error('Message failed to send')
+    } catch {
+      toast.error('Message failed to send')
+    }
+  }, [user, addMessage, conversationId, replyTo])
 
   const handleSendText = () => {
     if (!content.trim()) return

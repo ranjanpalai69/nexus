@@ -192,3 +192,7 @@ export function emitToUser(userId: string, event: string, data: unknown) {
 export function emitToPost(postId: string, event: string, data: unknown) {
   io?.to(`post:${postId}`).emit(event, data)
 }
+
+export function emitToConversation(conversationId: string, event: string, data: unknown) {
+  io?.to(`conversation:${conversationId}`).emit(event, data)
+}

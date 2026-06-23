@@ -25,8 +25,18 @@ export function NewMessageModal({ onClose }: NewMessageModalProps) {
     inputRef.current?.focus()
   }, [])
 
+  // Load mutual followers when search is empty
   useEffect(() => {
-    if (!query.trim() || query.length < 1) { setResults([]); return }
+    if (query.trim()) return
+    fetch('/api/users/mutual')
+      .then((r) => r.json())
+      .then((d) => setResults(d.users ?? []))
+      .catch(() => {})
+  }, [query])
+
+  // Search users when query is non-empty
+  useEffect(() => {
+    if (!query.trim()) return
     const t = setTimeout(async () => {
       setSearching(true)
       try {
@@ -90,8 +100,11 @@ export function NewMessageModal({ onClose }: NewMessageModalProps) {
           {results.length === 0 && !searching && query.trim() && (
             <p className="text-center text-sm text-muted-foreground py-8">No users found</p>
           )}
-          {results.length === 0 && !query.trim() && (
-            <p className="text-center text-xs text-muted-foreground py-8 opacity-60">Type to search for people</p>
+          {results.length === 0 && !query.trim() && !searching && (
+            <p className="text-center text-xs text-muted-foreground py-8 opacity-60">No mutual connections yet. Search to find anyone.</p>
+          )}
+          {results.length > 0 && !query.trim() && (
+            <p className="px-4 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Friends</p>
           )}
           {results.map((u) => (
             <button
