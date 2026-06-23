@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { useChatStore } from '@/store/chatStore'
 import { useAuthStore } from '@/store/authStore'
-import { formatMessageTime, truncate } from '@/lib/utils/helpers'
+import { formatMessageTime } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { PageLoader } from '@/components/shared/LoadingSpinner'
 import type { ConversationWithDetails, Profile } from '@/types/database'
@@ -13,7 +13,7 @@ import type { ConversationWithDetails, Profile } from '@/types/database'
 export function ConversationList() {
   const pathname = usePathname()
   const currentUser = useAuthStore((s) => s.user)
-  const { conversations, setConversations, isUserOnline } = useChatStore()
+  const { conversations, setConversations } = useChatStore()
 
   const { isLoading } = useQuery({
     queryKey: ['conversations'],
@@ -41,7 +41,6 @@ export function ConversationList() {
         const other = getOtherParticipant(conv)
         if (!other) return null
         const isActive = pathname === `/messages/${conv.id}`
-        const online = isUserOnline(other.id)
 
         return (
           <Link

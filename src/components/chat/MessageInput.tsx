@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useChatStore } from '@/store/chatStore'
 import EmojiPickerComponent, { type EmojiClickData } from 'emoji-picker-react'
 import toast from 'react-hot-toast'
-import { bytesToHuman, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES } from '@/lib/utils/helpers'
+import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES } from '@/lib/utils/helpers'
 import { v4 as uuidv4 } from 'uuid'
 
 interface MessageInputProps {
@@ -25,7 +25,7 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
   const [content, setContent] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [showVoice, setShowVoice] = useState(false)
-  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -101,7 +101,7 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    setUploadingFile(true)
+    setUploadingMedia(true)
     try {
       const isMedia = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES].includes(file.type)
       const folder = isMedia ? 'chat' : 'chat'
@@ -118,7 +118,7 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
     } catch {
       toast.error('File upload failed')
     } finally {
-      setUploadingFile(false)
+      setUploadingMedia(false)
     }
   }
 
@@ -176,11 +176,11 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
           </div>
 
           {content.trim() ? (
-            <Button size="icon-sm" variant="gradient" onClick={handleSendText}>
+            <Button size="icon-sm" variant="gradient" onClick={handleSendText} loading={uploadingMedia}>
               <FontAwesomeIcon icon={faPaperPlane} className="h-3.5 w-3.5" />
             </Button>
           ) : (
-            <button onClick={() => setShowVoice(true)} className="text-muted-foreground hover:text-primary transition-colors">
+            <button onClick={() => setShowVoice(true)} className="text-muted-foreground hover:text-primary transition-colors" disabled={uploadingMedia}>
               <FontAwesomeIcon icon={faMicrophone} className="h-4 w-4" />
             </button>
           )}

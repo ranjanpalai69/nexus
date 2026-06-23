@@ -17,7 +17,6 @@ function SocketInitializer() {
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { createPostOpen, setCreatePostOpen } = useUIStore()
   const pathname = usePathname()
-  const isMessages = pathname.startsWith('/messages/')
   const showRightPanel = !pathname.startsWith('/messages')
 
   return (

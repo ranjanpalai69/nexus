@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -48,7 +49,7 @@ export function Sidebar() {
     >
       {/* Logo */}
       <Link href="/feed" className="flex items-center gap-3 px-1 lg:px-2 mb-8 justify-center lg:justify-start">
-        <img src="/logo.svg" alt="Nexus" className="h-9 w-9 shrink-0" />
+        <Image src="/logo.svg" alt="Nexus" width={36} height={36} className="shrink-0" />
         <span className="hidden lg:block text-xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
           Nexus
         </span>

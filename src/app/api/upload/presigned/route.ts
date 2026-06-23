@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { generatePresignedUploadUrl, type UploadFolder } from '@/lib/s3/client'
+import { generateUploadUrl, type UploadFolder } from '@/lib/storage/client'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES, MAX_FILE_SIZE } from '@/lib/utils/helpers'
 
@@ -29,14 +29,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'File type not allowed' }, { status: 400 })
     }
 
-    const { uploadUrl, publicUrl, key } = await generatePresignedUploadUrl(
+    const { uploadUrl, publicUrl, path } = await generateUploadUrl(
       body.folder as UploadFolder,
       body.fileName,
-      body.contentType,
       user.id
     )
 
-    return NextResponse.json({ uploadUrl, publicUrl, key })
+    return NextResponse.json({ uploadUrl, publicUrl, path })
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
     console.error('[presigned]', err)

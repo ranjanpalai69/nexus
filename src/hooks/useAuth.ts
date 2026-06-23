@@ -2,10 +2,9 @@
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
-import type { Profile } from '@/types/database'
 
 export function useAuth() {
-  const { user, isLoading, setUser, setLoading } = useAuthStore()
+  const { user, isLoading, setUser } = useAuthStore()
   const supabase = createClient()
 
   useEffect(() => {

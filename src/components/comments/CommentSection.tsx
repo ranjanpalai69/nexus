@@ -1,5 +1,4 @@
 'use client'
-import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CommentItem } from './CommentItem'
 import { CommentInput } from './CommentInput'

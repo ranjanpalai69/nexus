@@ -3,55 +3,26 @@ services:
     name: nexus
     env: node
     region: oregon
-    plan: standard
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
-      - key: NEXT_PUBLIC_APP_URL
-        fromService:
-          type: web
-          name: nexus
-          property: host
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: nexus-redis
-          property: connectionString
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_REGION
-        sync: false
-      - key: AWS_S3_BUCKET
-        sync: false
-      - key: NEXT_PUBLIC_CDN_URL
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
+        value: ""
+      - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
         sync: false
       - key: JWT_SECRET
         generateValue: true
-    healthCheckPath: /api/health
-
-  - type: redis
-    name: nexus-redis
-    plan: starter
-    maxmemoryPolicy: allkeys-lru

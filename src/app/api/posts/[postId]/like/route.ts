@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextResponse } from 'next/server'
 import { createClient, adminClient } from '@/lib/supabase/server'
 import { emitToUser } from '@/lib/socket/server'

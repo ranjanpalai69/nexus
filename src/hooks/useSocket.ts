@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import type { Socket } from 'socket.io-client'
-import { getSocket, disconnectSocket } from '@/lib/socket/client'
+import { getSocket } from '@/lib/socket/client'
 import { useAuthStore } from '@/store/authStore'
 import { useChatStore } from '@/store/chatStore'
 import { useNotificationStore } from '@/store/notificationStore'

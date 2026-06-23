@@ -33,29 +33,27 @@ export function CreatePost({ onSuccess }: { onSuccess?: () => void }) {
   const [showEmoji, setShowEmoji] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const uploadFile = async (file: File): Promise<UploadedMedia> => {
-    const folder = file.type.startsWith('video') ? 'posts' : 'posts'
-    const res = await fetch('/api/upload/presigned', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size, folder }),
-    })
-    if (!res.ok) throw new Error('Failed to get upload URL')
-    const { uploadUrl, publicUrl } = await res.json()
-
-    await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
-
-    return {
-      url: publicUrl,
-      type: file.type.startsWith('video') ? 'video' : 'image',
-      previewUrl: URL.createObjectURL(file),
-      orderIndex: media.length,
-    }
-  }
-
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (media.length + acceptedFiles.length > 10) { toast.error('Max 10 files'); return }
     setUploading(true)
+
+    const uploadFile = async (file: File): Promise<UploadedMedia> => {
+      const res = await fetch('/api/upload/presigned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size, folder: 'posts' }),
+      })
+      if (!res.ok) throw new Error('Failed to get upload URL')
+      const { uploadUrl, publicUrl } = await res.json()
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      return {
+        url: publicUrl,
+        type: file.type.startsWith('video') ? 'video' : 'image',
+        previewUrl: URL.createObjectURL(file),
+        orderIndex: media.length,
+      }
+    }
+
     try {
       const uploads = await Promise.all(acceptedFiles.slice(0, 10 - media.length).map(uploadFile))
       setMedia((prev) => [...prev, ...uploads.map((u, i) => ({ ...u, orderIndex: prev.length + i }))])

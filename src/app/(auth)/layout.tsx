@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import Image from 'next/image'
 
 export const metadata: Metadata = { title: 'Auth' }
 
@@ -14,7 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <img src="/logo-dark.svg" alt="Nexus" className="h-10" />
+            <Image src="/logo-dark.svg" alt="Nexus" width={40} height={40} />
           </div>
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
             Connect with the world around you.
@@ -42,8 +42,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 sm:p-6 md:p-12">
         <div className="w-full max-w-md">
           <div className="md:hidden flex items-center mb-8">
-            <img src="/logo-light.svg" alt="Nexus" className="h-9 dark:hidden" />
-            <img src="/logo-dark.svg" alt="Nexus" className="h-9 hidden dark:block" />
+            <Image src="/logo-light.svg" alt="Nexus" width={36} height={36} className="dark:hidden" />
+            <Image src="/logo-dark.svg" alt="Nexus" width={36} height={36} className="hidden dark:block" />
           </div>
           {children}
         </div>

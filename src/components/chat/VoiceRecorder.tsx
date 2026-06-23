@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMicrophone, faStop, faTrash, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/button'
-import { secondsToTime, ALLOWED_AUDIO_TYPES } from '@/lib/utils/helpers'
+import { secondsToTime } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import toast from 'react-hot-toast'
 

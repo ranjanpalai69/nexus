@@ -10,7 +10,6 @@ import { CommentInput } from './CommentInput'
 import { timeAgo } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
 import type { CommentWithDetails } from '@/types/database'
 
 interface CommentItemProps {

@@ -23,8 +23,8 @@ export async function createClient() {
   )
 }
 
-// Lazily-initialized service role client (bypasses RLS, server-only)
-// Lazy init prevents "supabaseUrl is required" error during Next.js static build.
+// Lazily-initialized service role client (bypasses RLS, server-only).
+// Lazy init prevents "supabaseUrl is required" during Next.js static build.
 let _adminClient: SupabaseClient<Database> | null = null
 
 export const adminClient = new Proxy({} as SupabaseClient<Database>, {

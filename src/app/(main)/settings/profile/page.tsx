@@ -89,7 +89,7 @@ export default function EditProfilePage() {
           <UserAvatar user={user} size="xl" />
           <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
             <FontAwesomeIcon icon={faCamera} className="h-5 w-5 text-white" />
-            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploading} />
           </label>
         </div>
         <div>
