@@ -56,13 +56,13 @@ export function CommentInput({ postId, parentId, onSuccess, onCancel, placeholde
             maxLength={1000}
             className="flex-1 text-sm"
           />
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
             <div className="relative">
-              <button onClick={() => setShowEmoji(!showEmoji)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setShowEmoji(!showEmoji)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
                 <FontAwesomeIcon icon={faFaceSmile} className="h-4 w-4" />
               </button>
               {showEmoji && (
-                <div className="absolute bottom-8 right-0 z-50">
+                <div className="absolute bottom-10 right-0 z-50">
                   <EmojiPickerComponent
                     onEmojiClick={(d: EmojiClickData) => { setContent((c) => c + d.emoji); setShowEmoji(false) }}
                     lazyLoadEmojis
