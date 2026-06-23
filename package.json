@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production tsx server.ts",
+    "start": "NODE_OPTIONS=--max-old-space-size=256 NODE_ENV=production tsx server.ts",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
