@@ -26,7 +26,7 @@ app.prepare().then(async () => {
 
   httpServer
     .once('error', (err) => { console.error('Server error:', err); process.exit(1) })
-    .listen(port, () => {
+    .listen(port, hostname, () => {
       console.log(`\n🚀 Nexus ready on http://${dev ? 'localhost' : hostname}:${port}\n`)
     })
 })
