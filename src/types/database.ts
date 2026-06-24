@@ -522,3 +522,34 @@ export interface NotificationWithActor extends AppNotification {
 
 // Keep Notification as alias for backwards compatibility
 export type Notification = AppNotification
+
+// Story types
+export interface Story {
+  id: string
+  user_id: string
+  media_url: string
+  media_type: 'image' | 'video'
+  caption: string | null
+  views_count: number
+  expires_at: string
+  created_at: string
+}
+
+export interface StoryAuthor {
+  id: string
+  username: string
+  full_name: string | null
+  avatar_url: string | null
+  is_verified: boolean
+}
+
+export interface StoryWithAuthor extends Story {
+  author: StoryAuthor
+  viewed?: boolean
+}
+
+export interface StoryGroup {
+  user: StoryAuthor
+  stories: StoryWithAuthor[]
+  hasUnviewed: boolean
+}

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { adminClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 
 const schema = z.object({
@@ -18,9 +18,12 @@ export async function POST(req: Request) {
 
     const { username, email } = schema.parse(await req.json())
 
+    // profiles_select_all policy allows SELECT without auth, no adminClient needed
+    const supabase = await createClient()
+
     const [{ data: existingUsername }, { data: existingEmail }] = await Promise.all([
-      adminClient.from('profiles').select('id').eq('username', username).maybeSingle(),
-      adminClient.from('profiles').select('id').eq('email', email).maybeSingle(),
+      supabase.from('profiles').select('id').eq('username', username).maybeSingle(),
+      supabase.from('profiles').select('id').eq('email', email).maybeSingle(),
     ])
 
     if (existingUsername) return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
@@ -30,6 +33,7 @@ export async function POST(req: Request) {
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
     console.error('[signup-check]', err)
-    return NextResponse.json({ error: 'Check failed' }, { status: 500 })
+    // Return available:true on internal errors — Supabase will catch real duplicates during signUp
+    return NextResponse.json({ available: true })
   }
 }

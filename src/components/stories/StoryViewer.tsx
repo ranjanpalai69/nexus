@@ -126,7 +126,15 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
             // eslint-disable-next-line @next/next/no-img-element
             <img src={story.media_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <video src={story.media_url} autoPlay muted loop playsInline className="w-full h-full object-cover" />
+            <video
+              key={story.id}
+              src={story.media_url}
+              autoPlay
+              muted
+              playsInline
+              onEnded={advance}
+              className="w-full h-full object-cover"
+            />
           )}
 
           {/* Gradient overlay */}
