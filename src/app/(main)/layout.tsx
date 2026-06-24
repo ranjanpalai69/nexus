@@ -74,7 +74,8 @@ function NotificationInitializer() {
 }
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { createPostOpen, setCreatePostOpen } = useUIStore()
+  const createPostOpen = useUIStore((s) => s.createPostOpen)
+  const setCreatePostOpen = useUIStore((s) => s.setCreatePostOpen)
   const pathname = usePathname()
   const showRightPanel = !pathname.startsWith('/messages')
 

@@ -4,8 +4,11 @@ import { useAuthStore } from '@/store/authStore'
 
 export function TypingIndicator({ conversationId }: { conversationId: string }) {
   const currentUser = useAuthStore((s) => s.user)
-  const typingUsers = useChatStore((s) =>
-    s.typingUsers.filter((t) => t.conversationId === conversationId && t.userId !== currentUser?.id)
+  // Select the raw array — do NOT filter inside the selector because .filter() returns a new
+  // array reference on every call, making useSyncExternalStore loop infinitely (React #185).
+  const allTypingUsers = useChatStore((s) => s.typingUsers)
+  const typingUsers = allTypingUsers.filter(
+    (t) => t.conversationId === conversationId && t.userId !== currentUser?.id
   )
 
   if (typingUsers.length === 0) return null

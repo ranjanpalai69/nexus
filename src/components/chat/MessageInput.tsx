@@ -21,7 +21,7 @@ interface MessageInputProps {
 
 export function MessageInput({ conversationId, replyTo, onClearReply }: MessageInputProps) {
   const user = useAuthStore((s) => s.user)
-  const { addMessage } = useChatStore()
+  const addMessage = useChatStore((s) => s.addMessage)
   const [content, setContent] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [showVoice, setShowVoice] = useState(false)

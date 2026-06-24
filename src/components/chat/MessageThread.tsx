@@ -21,11 +21,15 @@ interface MessageThreadProps {
   conversationId: string
 }
 
+// Stable fallback avoids creating a new [] on every selector call (which would make
+// useSyncExternalStore see an "unstable snapshot" and loop infinitely — React #185).
+const EMPTY_MESSAGES: MessageWithSender[] = []
+
 export function MessageThread({ conversationId }: MessageThreadProps) {
   const user = useAuthStore((s) => s.user)
-  const conversationMessages = useChatStore((s) => s.messages[conversationId] ?? [])
+  const conversationMessages = useChatStore((s) => s.messages[conversationId]) ?? EMPTY_MESSAGES
   const setMessages = useChatStore((s) => s.setMessages)
-  const { openMediaViewer } = useUIStore()
+  const openMediaViewer = useUIStore((s) => s.openMediaViewer)
   const queryClient = useQueryClient()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
