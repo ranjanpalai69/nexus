@@ -75,7 +75,7 @@ export function IncomingCallModal() {
 
   const reject = () => {
     stopRef.current?.()
-    socket.emit('call:reject', { conversationId: incomingCall.conversationId })
+    socket.emit('call:reject', { conversationId: incomingCall.conversationId, callerId: incomingCall.callerId })
     setIncomingCall(null)
   }
 

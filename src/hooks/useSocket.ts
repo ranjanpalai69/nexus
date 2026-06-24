@@ -186,8 +186,7 @@ export function useSocket() {
     const handleCallInvite = (data: IncomingCall) => {
       const { activeCall } = useCallStore.getState()
       if (activeCall) {
-        // Already in a call — send busy
-        socket.emit('call:busy', { conversationId: data.conversationId })
+        socket.emit('call:busy', { conversationId: data.conversationId, callerId: data.callerId })
         return
       }
       useCallStore.getState().setIncomingCall(data)

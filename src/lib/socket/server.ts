@@ -122,12 +122,21 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.to(`conversation:${conversationId}`).emit('call:accept', { conversationId })
     })
 
-    socket.on('call:reject', ({ conversationId }) => {
-      socket.to(`conversation:${conversationId}`).emit('call:reject', { conversationId })
+    // Route reject/busy directly to caller's personal room — reliable regardless of conversation room state
+    socket.on('call:reject', ({ conversationId, callerId }) => {
+      if (callerId) {
+        io.to(`user:${callerId}`).emit('call:reject', { conversationId })
+      } else {
+        socket.to(`conversation:${conversationId}`).emit('call:reject', { conversationId })
+      }
     })
 
-    socket.on('call:busy', ({ conversationId }) => {
-      socket.to(`conversation:${conversationId}`).emit('call:busy', { conversationId })
+    socket.on('call:busy', ({ conversationId, callerId }) => {
+      if (callerId) {
+        io.to(`user:${callerId}`).emit('call:busy', { conversationId })
+      } else {
+        socket.to(`conversation:${conversationId}`).emit('call:busy', { conversationId })
+      }
     })
 
     socket.on('call:offer', ({ conversationId, sdp }) => {

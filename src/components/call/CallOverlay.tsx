@@ -10,6 +10,7 @@ import { useCallStore } from '@/store/callStore'
 import type { ActiveCall } from '@/store/callStore'
 import { getSocket } from '@/lib/socket/client'
 import { useAuthStore } from '@/store/authStore'
+import toast from 'react-hot-toast'
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -20,6 +21,26 @@ const ICE_SERVERS: RTCIceServer[] = [
 function fmt(s: number) {
   const m = Math.floor(s / 60)
   return `${m}:${(s % 60).toString().padStart(2, '0')}`
+}
+
+function playDeclineSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    const ctx = new AudioCtx()
+    ;[0, 0.18].forEach((offset) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(480 - offset * 200, ctx.currentTime + offset)
+      gain.gain.setValueAtTime(0.15, ctx.currentTime + offset)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.16)
+      osc.start(ctx.currentTime + offset)
+      osc.stop(ctx.currentTime + offset + 0.16)
+    })
+    setTimeout(() => ctx.close(), 600)
+  } catch {}
 }
 
 export function CallOverlay() {
@@ -75,7 +96,6 @@ export function CallOverlay() {
     const socket = getSocket(userId)
     let dead = false
 
-    // ── Helpers ──────────────────────────────────────────────────────
     const createAndSendOffer = async (pc: RTCPeerConnection) => {
       try {
         const offer = await pc.createOffer()
@@ -105,9 +125,7 @@ export function CallOverlay() {
       }
     }
 
-    // ── Init (async) ──────────────────────────────────────────────────
     const init = async () => {
-      // 1. Get user media
       let localStream: MediaStream
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' })
@@ -122,7 +140,6 @@ export function CallOverlay() {
         localVideoRef.current.srcObject = localStream
       }
 
-      // 2. Create peer connection
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
       pcRef.current = pc
 
@@ -152,7 +169,6 @@ export function CallOverlay() {
         }
       }
 
-      // 3. Process any events that arrived before PC was ready
       if (direction === 'inbound' && pendingOfferRef.current) {
         await processOffer(pc, pendingOfferRef.current)
         pendingOfferRef.current = null
@@ -166,12 +182,11 @@ export function CallOverlay() {
 
     init()
 
-    // ── Socket event handlers ──────────────────────────────────────────
     const onAccept = async () => {
       if (direction !== 'outbound') return
       setStatusText('Connecting...')
       if (!pcRef.current) {
-        pendingAcceptRef.current = true // PC not ready yet — queue
+        pendingAcceptRef.current = true
         return
       }
       await createAndSendOffer(pcRef.current)
@@ -180,7 +195,7 @@ export function CallOverlay() {
     const onOffer = async ({ sdp }: { conversationId: string; sdp: RTCSessionDescriptionInit }) => {
       if (direction !== 'inbound') return
       if (!pcRef.current) {
-        pendingOfferRef.current = sdp // PC not ready yet — queue
+        pendingOfferRef.current = sdp
         return
       }
       await processOffer(pcRef.current, sdp)
@@ -197,7 +212,7 @@ export function CallOverlay() {
 
     const onIce = async ({ candidate }: { conversationId: string; candidate: RTCIceCandidateInit }) => {
       if (!pcRef.current) {
-        pendingCandidatesRef.current.push(candidate) // Queue until PC ready
+        pendingCandidatesRef.current.push(candidate)
         return
       }
       try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {}
@@ -210,13 +225,19 @@ export function CallOverlay() {
     }
 
     const onReject = () => {
-      setStatusText('Call declined')
-      setTimeout(() => { dead = true; cleanupRefs(); setActiveCall(null) }, 1500)
+      dead = true
+      playDeclineSound()
+      cleanupRefs()
+      setActiveCall(null)
+      toast('Call declined', { icon: '📵', duration: 3000, position: 'top-center' })
     }
 
     const onBusy = () => {
-      setStatusText('User is busy')
-      setTimeout(() => { dead = true; cleanupRefs(); setActiveCall(null) }, 1500)
+      dead = true
+      playDeclineSound()
+      cleanupRefs()
+      setActiveCall(null)
+      toast('User is in another call', { icon: '📵', duration: 3000, position: 'top-center' })
     }
 
     socket.on('call:accept', onAccept)
@@ -287,8 +308,8 @@ export function CallOverlay() {
         />
       )}
 
-      {/* Pre-connection overlay (both call types) */}
-      {(!isVideo || !isConnected) && (
+      {/* Pre-connection overlay — only shows while NOT yet connected */}
+      {!isConnected && (
         <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 ${isVideo ? 'bg-gray-950/80 backdrop-blur-sm' : ''}`}>
           {activeCall.otherUserAvatar ? (
             <img
@@ -302,12 +323,12 @@ export function CallOverlay() {
             </div>
           )}
           <p className="text-2xl font-semibold">{activeCall.otherUserName}</p>
-          <p className="text-white/60 text-sm">{statusText || fmt(elapsed)}</p>
+          <p className="text-white/60 text-sm">{statusText}</p>
         </div>
       )}
 
-      {/* Audio-only: show name + duration when connected */}
-      {!isVideo && isConnected && (
+      {/* Connected state — audio call only (video shows the camera feed instead) */}
+      {isConnected && !isVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           {activeCall.otherUserAvatar ? (
             <img src={activeCall.otherUserAvatar} alt={activeCall.otherUserName}
@@ -322,7 +343,7 @@ export function CallOverlay() {
         </div>
       )}
 
-      {/* Local video (video call, corner) */}
+      {/* Local video corner (video calls) */}
       {isVideo && (
         <div className="absolute top-4 right-4 w-28 h-36 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl z-10">
           <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
