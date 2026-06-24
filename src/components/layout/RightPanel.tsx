@@ -96,9 +96,20 @@ export function RightPanel() {
       )}
 
       {/* Footer */}
-      <div className="px-1">
+      <div className="px-1 space-y-1">
         <p className="text-xs text-muted-foreground">
           © 2025 Nexus · <Link href="/privacy" className="hover:underline">Privacy</Link> · <Link href="/terms" className="hover:underline">Terms</Link>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Made &amp; managed by{' '}
+          <a
+            href="https://ranjanpalai69.github.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline text-foreground font-medium"
+          >
+            Ranjan Palai
+          </a>
         </p>
       </div>
     </aside>
