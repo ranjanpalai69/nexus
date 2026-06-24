@@ -58,7 +58,7 @@ export function IncomingCallModal() {
 
   const accept = () => {
     stopRef.current?.()
-    socket.emit('call:accept', { conversationId: incomingCall.conversationId })
+    socket.emit('call:accept', { conversationId: incomingCall.conversationId, callerId: incomingCall.callerId })
     socket.emit('conversation:join', incomingCall.conversationId)
     setActiveCall({
       conversationId: incomingCall.conversationId,

@@ -109,7 +109,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
       io.to(`user:${calleeId}`).emit('call:invite', {
         conversationId, callerId: userId, callerName, callerAvatar, type,
       })
-      pushCallInvite(calleeId, callerName, type, conversationId).catch(() => {})
+      pushCallInvite(calleeId, callerName, callerAvatar ?? null, type, conversationId, userId).catch(() => {})
     })
 
     // Caller cancelled before callee answered → notify callee via personal room
@@ -117,9 +117,14 @@ export async function initSocketServer(httpServer: HTTPServer) {
       io.to(`user:${calleeId}`).emit('call:cancel', { conversationId })
     })
 
-    socket.on('call:accept', ({ conversationId }) => {
+    socket.on('call:accept', ({ conversationId, callerId }) => {
       socket.join(`conversation:${conversationId}`)
-      socket.to(`conversation:${conversationId}`).emit('call:accept', { conversationId })
+      if (callerId) {
+        // Route directly to caller's personal room — reliable even if caller left the conv room
+        io.to(`user:${callerId}`).emit('call:accept', { conversationId })
+      } else {
+        socket.to(`conversation:${conversationId}`).emit('call:accept', { conversationId })
+      }
     })
 
     // Route reject/busy directly to caller's personal room — reliable regardless of conversation room state

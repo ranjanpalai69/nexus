@@ -32,9 +32,6 @@ next-env.d.ts
 # supabase migrations (local only)
 /supabase/
 
-# markdown docs
-*.md
-
 # builds
 /.next/
 /out/

@@ -31,16 +31,19 @@ self.addEventListener('push', (e) => {
     tag = 'nexus',
     url = '/',
     data = {},
-    actions = [],
     requireInteraction = false,
   } = payload
 
   const isCall = tag === 'call'
 
+  // For call notifications, always show Accept/Reject action buttons
+  const actions = isCall
+    ? [{ action: 'accept', title: '✅ Accept' }, { action: 'reject', title: '❌ Reject' }]
+    : (payload.actions || [])
+
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If the app is focused on the exact target page, skip the notification
-      // (except calls — always show those so the ringtone still fires)
+      // Skip non-call notifications if app tab is already focused on the target page
       if (!isCall) {
         const targetPath = new URL(url, self.location.origin).pathname
         const isFocused = windowClients.some(
@@ -68,24 +71,62 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
 
-  const url = e.notification.data?.url || '/'
-  const fullUrl = new URL(url, self.location.origin).href
+  const notifData = e.notification.data || {}
+  const action = e.action
+  const { conversationId, callerId, callerName, callerAvatar, callType, url = '/' } = notifData
+
+  // ── Reject action: signal the caller without opening the app ──────────────
+  if (action === 'reject') {
+    e.waitUntil(
+      fetch('/api/calls/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerId, conversationId }),
+      }).catch(() => {})
+    )
+    return
+  }
+
+  // ── Accept action or default tap ──────────────────────────────────────────
+  const baseUrl = url || (conversationId ? `/messages/${conversationId}` : '/')
+  const fullUrl = new URL(baseUrl, self.location.origin)
+
+  if (action === 'accept' && conversationId) {
+    fullUrl.searchParams.set('acceptCall', '1')
+    if (callerId) fullUrl.searchParams.set('callerId', callerId)
+    if (callerName) fullUrl.searchParams.set('callerName', encodeURIComponent(callerName))
+    if (callerAvatar) fullUrl.searchParams.set('callerAvatar', encodeURIComponent(callerAvatar))
+    if (callType) fullUrl.searchParams.set('callType', callType)
+  }
 
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Focus an existing tab at the same origin first
-      for (const client of windowClients) {
-        if (new URL(client.url).origin === self.location.origin) {
-          return client.focus().then((c) => c.navigate(fullUrl))
+      const existing = windowClients.find(
+        (c) => new URL(c.url).origin === self.location.origin
+      )
+
+      if (existing) {
+        // Post a message for instant auto-accept when app is in background
+        if (action === 'accept' && conversationId) {
+          existing.postMessage({
+            type: 'CALL_ACCEPT_ACTION',
+            conversationId,
+            callerId,
+            callerName,
+            callerAvatar,
+            callType,
+          })
         }
+        return existing.focus().then((c) => c.navigate(fullUrl.href))
       }
-      // No existing tab — open one
-      return self.clients.openWindow(fullUrl)
+
+      // No existing tab — open the app (auto-accept handled via URL params)
+      return self.clients.openWindow(fullUrl.href)
     })
   )
 })
 
-// ── Message from page (e.g. force update) ─────────────────────────────────
+// ── Message from page (e.g. force SW update) ──────────────────────────────
 self.addEventListener('message', (e) => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })

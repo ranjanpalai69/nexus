@@ -57,10 +57,24 @@ export function SignupForm() {
         },
       })
 
-      if (error) { toast.error(error.message); return }
+      if (error) {
+        if (error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already been registered')) {
+          toast.error('Email already registered. Try logging in instead.')
+        } else {
+          toast.error(error.message || 'Sign up failed. Please try again.')
+        }
+        return
+      }
+
+      // identities is empty when the email already exists in auth.users (unconfirmed)
+      if (!signUpData.user || signUpData.user.identities?.length === 0) {
+        toast.error('Email already registered. Check your inbox for a confirmation email.')
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
+        return
+      }
 
       if (signUpData.session) {
-        // Email confirmation is disabled — user is signed in immediately
+        // Email confirmation disabled — signed in immediately
         toast.success('Account created! Welcome to Nexus 🎉')
         router.push('/feed')
       } else {

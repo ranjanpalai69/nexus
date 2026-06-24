@@ -134,8 +134,10 @@ export async function pushMessage(
 export async function pushCallInvite(
   calleeId: string,
   callerName: string,
+  callerAvatar: string | null,
   type: 'audio' | 'video',
   conversationId: string,
+  callerId: string,
 ) {
   await sendPushToUser(calleeId, {
     title: type === 'video' ? '📹 Incoming video call' : '📞 Incoming audio call',
@@ -143,8 +145,11 @@ export async function pushCallInvite(
     tag: 'call',
     url: `/messages/${conversationId}`,
     requireInteraction: true,
-    data: { conversationId, type },
-    actions: [{ action: 'open', title: 'Open app' }],
+    data: { conversationId, callerId, callerName, callerAvatar, callType: type },
+    actions: [
+      { action: 'accept', title: '✅ Accept' },
+      { action: 'reject', title: '❌ Reject' },
+    ],
     urgency: 'high',
     ttl: 45,
   })

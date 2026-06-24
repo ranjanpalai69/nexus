@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useSocket } from '@/hooks/useSocket'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
@@ -15,6 +15,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
 import { IncomingCallModal } from '@/components/call/IncomingCallModal'
 import { CallOverlay } from '@/components/call/CallOverlay'
+import { CallNotificationHandler } from '@/components/call/CallNotificationHandler'
 import { useCallStore } from '@/store/callStore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGear, faRightFromBracket, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
@@ -153,6 +154,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <MediaViewer />
 
       {/* Global call UI */}
+      <Suspense fallback={null}>
+        <CallNotificationHandler />
+      </Suspense>
       {incomingCall && <IncomingCallModal />}
       {activeCall && <CallOverlay />}
     </div>
