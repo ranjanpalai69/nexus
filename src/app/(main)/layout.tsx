@@ -98,7 +98,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Main content */}
-      <div className={`md:ml-16 lg:ml-64 transition-all duration-300 ${isConversationPage ? 'h-dvh md:h-auto' : ''}`}>
+      <div className={`md:ml-16 lg:ml-64 transition-all duration-300 ${isConversationPage ? 'h-dvh overflow-hidden md:h-auto md:overflow-visible' : ''}`}>
         <div className={
           isConversationPage
             ? 'h-full md:mx-auto md:max-w-5xl md:px-3 md:py-6'

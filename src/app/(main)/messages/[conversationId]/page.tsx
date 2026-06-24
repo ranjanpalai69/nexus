@@ -98,7 +98,7 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
   return (
     <>
       {/* Full-viewport on mobile, constrained card on md+ */}
-      <div className="flex h-full md:h-[calc(100vh-6rem)] md:rounded-2xl md:border md:border-border bg-card overflow-hidden">
+      <div className="flex h-dvh md:h-[calc(100vh-6rem)] md:rounded-2xl md:border md:border-border bg-card overflow-hidden">
         {/* Sidebar — large screens only */}
         <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">

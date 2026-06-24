@@ -41,7 +41,11 @@ export function CallOverlay() {
   const callRef = useRef<ActiveCall | null>(null)
   callRef.current = activeCall
 
-  // Cleanup helper — does NOT emit call:end (call it only on remote-ended calls)
+  // Queues for events that arrive before the peer connection is ready
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null)
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
+  const pendingAcceptRef = useRef(false)
+
   const cleanupRefs = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
     pcRef.current?.close()
@@ -54,7 +58,6 @@ export function CallOverlay() {
     if (!call || !userId) return
     const socket = getSocket(userId)
     if (!call.startedAt) {
-      // Call never connected — cancel the invite (goes to callee personal room)
       socket.emit('call:cancel', { conversationId: call.conversationId, calleeId: call.otherUserId })
     } else {
       const duration = Math.floor((Date.now() - call.startedAt) / 1000)
@@ -64,38 +67,69 @@ export function CallOverlay() {
     setActiveCall(null)
   }, [userId, setActiveCall, cleanupRefs])
 
-  // ── Main WebRTC effect ────────────────────────────────────────────
+  // ── Main WebRTC effect ──────────────────────────────────────────────
   useEffect(() => {
     if (!activeCall || !userId) return
 
     const { conversationId, direction, type } = activeCall
     const socket = getSocket(userId)
-    let pc: RTCPeerConnection | null = null
-    let localStream: MediaStream | null = null
     let dead = false
 
+    // ── Helpers ──────────────────────────────────────────────────────
+    const createAndSendOffer = async (pc: RTCPeerConnection) => {
+      try {
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        socket.emit('call:offer', { conversationId, sdp: offer })
+      } catch (err) {
+        console.error('[call] createOffer failed', err)
+      }
+    }
+
+    const processOffer = async (pc: RTCPeerConnection, sdp: RTCSessionDescriptionInit) => {
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp))
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        socket.emit('call:answer', { conversationId, sdp: answer })
+      } catch (err) {
+        console.error('[call] processOffer failed', err)
+      }
+    }
+
+    const flushCandidates = async (pc: RTCPeerConnection) => {
+      const pending = [...pendingCandidatesRef.current]
+      pendingCandidatesRef.current = []
+      for (const c of pending) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)) } catch {}
+      }
+    }
+
+    // ── Init (async) ──────────────────────────────────────────────────
     const init = async () => {
       // 1. Get user media
+      let localStream: MediaStream
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' })
       } catch {
-        setStatusText('Microphone/camera access denied')
+        setStatusText('Camera/mic access denied')
         return
       }
       if (dead) { localStream.getTracks().forEach((t) => t.stop()); return }
 
       localStreamRef.current = localStream
-      if (localVideoRef.current) {
+      if (type === 'video' && localVideoRef.current) {
         localVideoRef.current.srcObject = localStream
       }
 
       // 2. Create peer connection
-      pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
       pcRef.current = pc
 
-      localStream.getTracks().forEach((t) => pc!.addTrack(t, localStream!))
+      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
 
       pc.ontrack = (e) => {
+        if (dead) return
         const stream = e.streams[0]
         if (type === 'video' && remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream
@@ -113,43 +147,43 @@ export function CallOverlay() {
       }
 
       pc.onconnectionstatechange = () => {
-        if (pc?.connectionState === 'disconnected' || pc?.connectionState === 'failed') {
-          hangUp()
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          if (!dead) hangUp()
         }
       }
 
-      if (direction === 'outbound') {
-        setStatusText('Ringing...')
-      } else {
-        setStatusText('Connecting...')
+      // 3. Process any events that arrived before PC was ready
+      if (direction === 'inbound' && pendingOfferRef.current) {
+        await processOffer(pc, pendingOfferRef.current)
+        pendingOfferRef.current = null
       }
+      if (direction === 'outbound' && pendingAcceptRef.current) {
+        pendingAcceptRef.current = false
+        await createAndSendOffer(pc)
+      }
+      await flushCandidates(pc)
     }
 
     init()
 
-    // ── Socket event handlers ──
+    // ── Socket event handlers ──────────────────────────────────────────
     const onAccept = async () => {
-      if (direction !== 'outbound' || !pcRef.current) return
+      if (direction !== 'outbound') return
       setStatusText('Connecting...')
-      try {
-        const offer = await pcRef.current.createOffer()
-        await pcRef.current.setLocalDescription(offer)
-        socket.emit('call:offer', { conversationId, sdp: offer })
-      } catch (err) {
-        console.error('[call] createOffer failed', err)
+      if (!pcRef.current) {
+        pendingAcceptRef.current = true // PC not ready yet — queue
+        return
       }
+      await createAndSendOffer(pcRef.current)
     }
 
     const onOffer = async ({ sdp }: { conversationId: string; sdp: RTCSessionDescriptionInit }) => {
-      if (direction !== 'inbound' || !pcRef.current) return
-      try {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
-        const answer = await pcRef.current.createAnswer()
-        await pcRef.current.setLocalDescription(answer)
-        socket.emit('call:answer', { conversationId, sdp: answer })
-      } catch (err) {
-        console.error('[call] handleOffer failed', err)
+      if (direction !== 'inbound') return
+      if (!pcRef.current) {
+        pendingOfferRef.current = sdp // PC not ready yet — queue
+        return
       }
+      await processOffer(pcRef.current, sdp)
     }
 
     const onAnswer = async ({ sdp }: { conversationId: string; sdp: RTCSessionDescriptionInit }) => {
@@ -157,28 +191,32 @@ export function CallOverlay() {
       try {
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
       } catch (err) {
-        console.error('[call] handleAnswer failed', err)
+        console.error('[call] setRemoteDescription (answer) failed', err)
       }
     }
 
     const onIce = async ({ candidate }: { conversationId: string; candidate: RTCIceCandidateInit }) => {
-      if (!pcRef.current) return
+      if (!pcRef.current) {
+        pendingCandidatesRef.current.push(candidate) // Queue until PC ready
+        return
+      }
       try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {}
     }
 
     const onRemoteEnd = () => {
+      dead = true
       cleanupRefs()
       setActiveCall(null)
     }
 
     const onReject = () => {
       setStatusText('Call declined')
-      setTimeout(() => { cleanupRefs(); setActiveCall(null) }, 1500)
+      setTimeout(() => { dead = true; cleanupRefs(); setActiveCall(null) }, 1500)
     }
 
     const onBusy = () => {
       setStatusText('User is busy')
-      setTimeout(() => { cleanupRefs(); setActiveCall(null) }, 1500)
+      setTimeout(() => { dead = true; cleanupRefs(); setActiveCall(null) }, 1500)
     }
 
     socket.on('call:accept', onAccept)
@@ -191,6 +229,9 @@ export function CallOverlay() {
 
     return () => {
       dead = true
+      pendingOfferRef.current = null
+      pendingCandidatesRef.current = []
+      pendingAcceptRef.current = false
       socket.off('call:accept', onAccept)
       socket.off('call:offer', onOffer)
       socket.off('call:answer', onAnswer)
@@ -198,13 +239,13 @@ export function CallOverlay() {
       socket.off('call:end', onRemoteEnd)
       socket.off('call:reject', onReject)
       socket.off('call:busy', onBusy)
-      localStream?.getTracks().forEach((t) => t.stop())
-      pc?.close()
+      localStreamRef.current?.getTracks().forEach((t) => t.stop())
+      pcRef.current?.close()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.conversationId, activeCall?.direction, activeCall?.type, userId])
 
-  // ── Duration timer ─────────────────────────────────────────────────
+  // ── Duration timer ──────────────────────────────────────────────────
   useEffect(() => {
     if (!activeCall?.startedAt) { setElapsed(0); return }
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - activeCall.startedAt!) / 1000)), 1000)
@@ -236,7 +277,7 @@ export function CallOverlay() {
       {/* Hidden audio element for audio calls */}
       {!isVideo && <audio ref={remoteAudioRef} autoPlay playsInline />}
 
-      {/* Remote video background */}
+      {/* Remote video (video calls) */}
       {isVideo && (
         <video
           ref={remoteVideoRef}
@@ -246,31 +287,44 @@ export function CallOverlay() {
         />
       )}
 
-      {/* Overlay for non-video or pre-connection */}
+      {/* Pre-connection overlay (both call types) */}
       {(!isVideo || !isConnected) && (
         <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 ${isVideo ? 'bg-gray-950/80 backdrop-blur-sm' : ''}`}>
-          {/* Avatar */}
-          <div className="relative">
-            {activeCall.otherUserAvatar ? (
-              <img
-                src={activeCall.otherUserAvatar}
-                alt={activeCall.otherUserName}
-                className="h-24 w-24 rounded-full object-cover ring-4 ring-white/20"
-              />
-            ) : (
-              <div className="h-24 w-24 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
-                {activeCall.otherUserName[0]?.toUpperCase()}
-              </div>
-            )}
-          </div>
+          {activeCall.otherUserAvatar ? (
+            <img
+              src={activeCall.otherUserAvatar}
+              alt={activeCall.otherUserName}
+              className="h-24 w-24 rounded-full object-cover ring-4 ring-white/20"
+            />
+          ) : (
+            <div className="h-24 w-24 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
+              {activeCall.otherUserName[0]?.toUpperCase()}
+            </div>
+          )}
           <p className="text-2xl font-semibold">{activeCall.otherUserName}</p>
           <p className="text-white/60 text-sm">{statusText || fmt(elapsed)}</p>
         </div>
       )}
 
-      {/* Local video (video call, top-right corner) */}
+      {/* Audio-only: show name + duration when connected */}
+      {!isVideo && isConnected && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+          {activeCall.otherUserAvatar ? (
+            <img src={activeCall.otherUserAvatar} alt={activeCall.otherUserName}
+              className="h-24 w-24 rounded-full object-cover ring-4 ring-white/20" />
+          ) : (
+            <div className="h-24 w-24 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
+              {activeCall.otherUserName[0]?.toUpperCase()}
+            </div>
+          )}
+          <p className="text-2xl font-semibold">{activeCall.otherUserName}</p>
+          <p className="text-white/70 text-lg font-mono">{fmt(elapsed)}</p>
+        </div>
+      )}
+
+      {/* Local video (video call, corner) */}
       {isVideo && (
-        <div className="absolute top-safe top-4 right-4 w-28 h-36 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl z-10">
+        <div className="absolute top-4 right-4 w-28 h-36 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl z-10">
           <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
           {camOff && (
             <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
@@ -280,7 +334,7 @@ export function CallOverlay() {
         </div>
       )}
 
-      {/* Duration (video + connected) */}
+      {/* Duration badge (video + connected) */}
       {isVideo && isConnected && (
         <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-black/40 backdrop-blur-sm z-10">
           <span className="text-sm font-mono">{fmt(elapsed)}</span>
@@ -288,10 +342,10 @@ export function CallOverlay() {
       )}
 
       {/* Controls */}
-      <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-5 pb-12 pt-6 bg-gradient-to-t from-black/60 to-transparent">
+      <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-5 pb-12 pt-6 bg-gradient-to-t from-black/70 to-transparent">
         <button
           onClick={toggleMute}
-          className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${muted ? 'bg-red-500 shadow-red-500/40 shadow-lg' : 'bg-white/20 hover:bg-white/30'}`}
+          className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${muted ? 'bg-red-500 shadow-lg shadow-red-500/40' : 'bg-white/20 hover:bg-white/30'}`}
           title={muted ? 'Unmute' : 'Mute'}
         >
           <FontAwesomeIcon icon={muted ? faMicrophoneSlash : faMicrophone} className="h-5 w-5" />
@@ -308,7 +362,7 @@ export function CallOverlay() {
         {isVideo && (
           <button
             onClick={toggleCam}
-            className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${camOff ? 'bg-red-500 shadow-red-500/40 shadow-lg' : 'bg-white/20 hover:bg-white/30'}`}
+            className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${camOff ? 'bg-red-500 shadow-lg shadow-red-500/40' : 'bg-white/20 hover:bg-white/30'}`}
             title={camOff ? 'Turn camera on' : 'Turn camera off'}
           >
             <FontAwesomeIcon icon={camOff ? faVideoSlash : faVideo} className="h-5 w-5" />
