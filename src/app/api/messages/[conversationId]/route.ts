@@ -186,6 +186,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
       await adminClient.from('conversations').update({
         last_message_at: inserted.created_at,
         last_message_preview: preview,
+        last_message_sender_id: user.id,
       }).eq('id', conversationId)
 
       emitToConversation(conversationId, 'message:new', { ...message, tempId })

@@ -24,8 +24,7 @@ function formatLastSeen(iso: string | null | undefined): string {
   if (mins < 60) return `Last seen ${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `Last seen ${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `Last seen ${days}d ago`
+  return `Last seen ${Math.floor(hrs / 24)}d ago`
 }
 
 export default function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
@@ -64,79 +63,79 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     conversation?.participants?.find((p) => p.user_id !== currentUser?.id)?.profile
 
   const online = otherParticipant ? isUserOnline(otherParticipant.id) : false
-
-  // Typing: is the other user currently typing in this conversation?
   const otherIsTyping = otherParticipant
-    ? allTypingUsers.some(
-        (t) => t.conversationId === conversationId && t.userId === otherParticipant.id
-      )
+    ? allTypingUsers.some((t) => t.conversationId === conversationId && t.userId === otherParticipant.id)
     : false
 
   const [showNewMessage, setShowNewMessage] = useState(false)
 
   return (
     <>
-    <div className="flex h-[calc(100dvh-5rem)] md:h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
-      {/* Sidebar on large screens */}
-      <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="font-semibold">Messages</h2>
-          <Button variant="ghost" size="icon-sm" onClick={() => setShowNewMessage(true)} title="New Message">
-            <FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" />
-          </Button>
+      {/* Full-viewport on mobile, constrained card on md+ */}
+      <div className="flex h-dvh md:h-[calc(100vh-6rem)] md:rounded-2xl md:border md:border-border bg-card overflow-hidden">
+        {/* Sidebar — large screens only */}
+        <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="font-semibold">Messages</h2>
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowNewMessage(true)} title="New Message">
+              <FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            <ConversationList />
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
-          <ConversationList />
-        </div>
-      </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3 shrink-0">
-          <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => router.back()}>
-            <FontAwesomeIcon icon={faArrowLeft} className="h-4 w-4" />
-          </Button>
-          {otherParticipant && (
-            <>
-              <Link href={`/profile/${otherParticipant.username}`}>
-                <UserAvatar user={otherParticipant} size="sm" showOnline />
-              </Link>
-              <div className="flex-1 min-w-0">
+        {/* Chat area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="flex items-center gap-3 border-b border-border px-3 py-2.5 shrink-0 bg-card/95 backdrop-blur-sm">
+            <Button variant="ghost" size="icon-sm" className="lg:hidden -ml-1" onClick={() => router.back()}>
+              <FontAwesomeIcon icon={faArrowLeft} className="h-4 w-4" />
+            </Button>
+            {otherParticipant ? (
+              <>
                 <Link href={`/profile/${otherParticipant.username}`}>
-                  <p className="text-sm font-semibold hover:underline truncate">
-                    {otherParticipant.full_name || otherParticipant.username}
-                  </p>
+                  <UserAvatar user={otherParticipant} size="sm" showOnline />
                 </Link>
-                {otherIsTyping ? (
-                  <p className="text-xs text-primary flex items-center gap-1">
-                    <span className="relative flex gap-0.5 items-end h-3">
-                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
-                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
-                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
-                    </span>
-                    typing...
-                  </p>
-                ) : (
-                  <p className={cn('text-xs flex items-center gap-1', online ? 'text-emerald-500' : 'text-muted-foreground')}>
-                    <FontAwesomeIcon icon={faCircle} className="h-1.5 w-1.5" />
-                    {online ? 'Online' : formatLastSeen(otherParticipant.last_seen)}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <Link href={`/profile/${otherParticipant.username}`}>
+                    <p className="text-sm font-semibold hover:underline truncate leading-tight">
+                      {otherParticipant.full_name || otherParticipant.username}
+                    </p>
+                  </Link>
+                  {otherIsTyping ? (
+                    <p className="text-xs text-primary flex items-center gap-1.5">
+                      <span className="flex gap-0.5 items-end">
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+                      </span>
+                      typing...
+                    </p>
+                  ) : (
+                    <p className={cn('text-xs flex items-center gap-1 leading-tight', online ? 'text-emerald-500' : 'text-muted-foreground')}>
+                      <FontAwesomeIcon icon={faCircle} className="h-1.5 w-1.5" />
+                      {online ? 'Online' : formatLastSeen(otherParticipant.last_seen)}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1" />
+            )}
+          </div>
 
-        {/* Messages */}
-        <div className="flex-1 min-h-0">
-          <MessageThread conversationId={conversationId} />
+          {/* Messages */}
+          <div className="flex-1 min-h-0">
+            <MessageThread conversationId={conversationId} otherUserId={otherParticipant?.id} />
+          </div>
         </div>
       </div>
-    </div>
-    <AnimatePresence>
-      {showNewMessage && <NewMessageModal onClose={() => setShowNewMessage(false)} />}
-    </AnimatePresence>
+
+      <AnimatePresence>
+        {showNewMessage && <NewMessageModal onClose={() => setShowNewMessage(false)} />}
+      </AnimatePresence>
     </>
   )
 }

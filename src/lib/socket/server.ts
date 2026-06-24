@@ -5,14 +5,11 @@ import { createClient as createRedisClient } from 'redis'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { adminClient } from '@/lib/supabase/server'
 
-// Use global so the io instance is shared across Next.js bundle boundaries
-// (server.ts entry point and API route bundles are separate webpack modules)
 declare global {
   // eslint-disable-next-line no-var
   var _socketIO: SocketServer | undefined
 }
 
-// Online presence: userId -> Set of socketIds
 const onlineUsers = new Map<string, Set<string>>()
 
 function getIO(): SocketServer | null {
@@ -32,10 +29,8 @@ export async function initSocketServer(httpServer: HTTPServer) {
     transports: ['websocket', 'polling'],
   })
 
-  // Store in global immediately so API routes can access it
   global._socketIO = io
 
-  // Redis adapter for horizontal scaling
   if (process.env.REDIS_URL) {
     try {
       const pubClient = createRedisClient({ url: process.env.REDIS_URL })
@@ -52,17 +47,15 @@ export async function initSocketServer(httpServer: HTTPServer) {
     const userId = socket.handshake.auth.userId as string | undefined
     if (!userId) { socket.disconnect(); return }
 
-    // Join personal room
     socket.join(`user:${userId}`)
 
-    // Track online presence
     if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set())
     onlineUsers.get(userId)!.add(socket.id)
 
     setUserOnlineStatus(userId, true)
     io.emit('user:online', { userId })
 
-    // ─── Conversation rooms ───────────────────────────────────
+    // ── Conversation rooms ──────────────────────────────────────
     socket.on('conversation:join', (conversationId: string) => {
       socket.join(`conversation:${conversationId}`)
     })
@@ -71,7 +64,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.leave(`conversation:${conversationId}`)
     })
 
-    // ─── Post rooms (real-time likes, comments) ───────────────
+    // ── Post rooms ──────────────────────────────────────────────
     socket.on('post:join', ({ postId }: { postId: string }) => {
       socket.join(`post:${postId}`)
     })
@@ -80,7 +73,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.leave(`post:${postId}`)
     })
 
-    // ─── Typing indicators ───────────────────────────────────
+    // ── Typing indicators ───────────────────────────────────────
     socket.on('typing:start', ({ conversationId }: { conversationId: string }) => {
       socket.to(`conversation:${conversationId}`).emit('typing:start', { userId, conversationId })
     })
@@ -89,7 +82,27 @@ export async function initSocketServer(httpServer: HTTPServer) {
       socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId, conversationId })
     })
 
-    // ─── Disconnect ──────────────────────────────────────────
+    // ── Read receipts (client → server → other participants) ────
+    // Client emits this when they open/view a conversation so the sender
+    // instantly sees the double-blue tick without waiting for an HTTP round-trip.
+    socket.on('messages:read', async ({ conversationId }: { conversationId: string }) => {
+      const readAt = new Date().toISOString()
+      try {
+        await adminClient
+          .from('conversation_participants')
+          .update({ last_read_at: readAt })
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId)
+      } catch {}
+      // Broadcast to everyone else in the room (the message sender sees their tick turn blue)
+      socket.to(`conversation:${conversationId}`).emit('messages:read', {
+        conversationId,
+        userId,
+        readAt,
+      })
+    })
+
+    // ── Disconnect ──────────────────────────────────────────────
     socket.on('disconnect', () => {
       const sockets = onlineUsers.get(userId)
       if (sockets) {

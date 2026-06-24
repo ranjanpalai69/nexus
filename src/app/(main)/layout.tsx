@@ -25,7 +25,6 @@ function SocketInitializer() {
   return null
 }
 
-// Mobile-only top header with logo, theme, settings, and logout
 function MobileHeader() {
   const router = useRouter()
   const supabase = createClient()
@@ -57,11 +56,9 @@ function MobileHeader() {
   )
 }
 
-// Pre-load unread notification count on any page so the badge is always correct
 function NotificationInitializer() {
   const userId = useAuthStore((s) => s.user?.id)
   const setNotifications = useNotificationStore((s) => s.setNotifications)
-
   useEffect(() => {
     if (!userId) return
     fetch('/api/notifications')
@@ -69,7 +66,6 @@ function NotificationInitializer() {
       .then((d) => { if (d.notifications) setNotifications(d.notifications) })
       .catch(() => {})
   }, [userId, setNotifications])
-
   return null
 }
 
@@ -77,6 +73,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const createPostOpen = useUIStore((s) => s.createPostOpen)
   const setCreatePostOpen = useUIStore((s) => s.setCreatePostOpen)
   const pathname = usePathname()
+
+  // On individual conversation pages, the chat takes the full viewport on mobile
+  // (no app header, no bottom nav) — just like WhatsApp/Instagram DMs.
+  const isConversationPage = /^\/messages\/.+/.test(pathname)
   const showRightPanel = !pathname.startsWith('/messages')
 
   return (
@@ -84,18 +84,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <SocketInitializer />
       <NotificationInitializer />
 
-      {/* Mobile Top Header */}
-      <MobileHeader />
+      {/* Mobile top header — hidden on conversation pages (chat has its own header) */}
+      {!isConversationPage && <MobileHeader />}
 
-      {/* Desktop Sidebar */}
+      {/* Desktop sidebar */}
       <div className="hidden md:block">
         <Sidebar />
       </div>
 
-      {/* Main Content */}
-      <div className="md:ml-16 lg:ml-64 transition-all duration-300">
-        <div className={`mx-auto max-w-5xl px-3 sm:px-4 pt-16 pb-4 md:py-6 sm:pt-16 md:pt-6 ${showRightPanel ? 'grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-4 lg:gap-6' : ''}`}>
-          <main className="min-w-0">{children}</main>
+      {/* Main content */}
+      <div className={`md:ml-16 lg:ml-64 transition-all duration-300 ${isConversationPage ? 'h-dvh md:h-auto' : ''}`}>
+        <div className={
+          isConversationPage
+            ? 'h-full md:mx-auto md:max-w-5xl md:px-3 md:py-6'
+            : `mx-auto max-w-5xl px-3 sm:px-4 pt-16 pb-4 md:py-6 md:pt-6 sm:pt-16 ${showRightPanel ? 'grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-4 lg:gap-6' : ''}`
+        }>
+          <main className={isConversationPage ? 'h-full' : 'min-w-0'}>{children}</main>
           {showRightPanel && (
             <div className="hidden xl:block">
               <RightPanel />
@@ -104,7 +108,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
       </div>
 
-      {/* Footer — visible on screens narrower than xl (RightPanel handles xl+) */}
+      {/* Footer — visible on tablet/mobile, hidden on xl (RightPanel has it) and on conversation pages */}
       {showRightPanel && (
         <div className="xl:hidden md:ml-16 lg:ml-64 px-4 pb-4 text-center space-y-0.5">
           <p className="text-xs text-muted-foreground">
@@ -112,23 +116,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </p>
           <p className="text-xs text-muted-foreground">
             Made &amp; managed by{' '}
-            <a
-              href="https://ranjanpalai69.github.io/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline text-foreground font-medium"
-            >
+            <a href="https://ranjanpalai69.github.io/" target="_blank" rel="noopener noreferrer"
+              className="hover:underline text-foreground font-medium">
               Ranjan Palai
             </a>
           </p>
         </div>
       )}
 
-      {/* Mobile Navigation */}
-      <div className="md:hidden">
-        <MobileNav />
-        <div className="h-20" /> {/* spacer */}
-      </div>
+      {/* Mobile nav — hidden on conversation pages (full-screen chat) */}
+      {!isConversationPage && (
+        <div className="md:hidden">
+          <MobileNav />
+          <div className="h-20" />
+        </div>
+      )}
 
       {/* Create Post Modal */}
       <Dialog open={createPostOpen} onOpenChange={setCreatePostOpen}>

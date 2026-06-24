@@ -508,6 +508,7 @@ export interface ConversationWithDetails extends Conversation {
   participants: (ConversationParticipant & { profile: Profile })[]
   last_message?: Message & { sender?: Profile }
   unread_count?: number
+  last_message_sender_id?: string | null
 }
 
 export interface MessageWithSender extends Message {

@@ -56,8 +56,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           conversations: state.conversations.map((c) => (c.id === id ? { ...c, ...updates } : c)),
         }
       }
-      // Conversation not in store yet — will be loaded on next conversations fetch
-      // Just invalidate by not touching state; caller handles re-fetch
       return state
     }),
 
