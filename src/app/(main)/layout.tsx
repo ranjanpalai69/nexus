@@ -104,6 +104,26 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
       </div>
 
+      {/* Footer — visible on screens narrower than xl (RightPanel handles xl+) */}
+      {showRightPanel && (
+        <div className="xl:hidden md:ml-16 lg:ml-64 px-4 pb-4 text-center space-y-0.5">
+          <p className="text-xs text-muted-foreground">
+            © 2025 Nexus · <Link href="/privacy" className="hover:underline">Privacy</Link> · <Link href="/terms" className="hover:underline">Terms</Link>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Made &amp; managed by{' '}
+            <a
+              href="https://ranjanpalai69.github.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline text-foreground font-medium"
+            >
+              Ranjan Palai
+            </a>
+          </p>
+        </div>
+      )}
+
       {/* Mobile Navigation */}
       <div className="md:hidden">
         <MobileNav />

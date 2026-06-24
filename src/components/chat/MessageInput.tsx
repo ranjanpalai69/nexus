@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPaperPlane, faImage, faMicrophone, faFile, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-regular-svg-icons'
@@ -35,6 +35,18 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
     socket?.emit(isTyping ? 'typing:start' : 'typing:stop', { conversationId })
   }, [socket, conversationId])
 
+  // Auto-grow the textarea
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`
+  }, [])
+
+  useEffect(() => {
+    autoResize()
+  }, [content, autoResize])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendText() }
   }
@@ -53,7 +65,6 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
     if (!user) return
     const tempId = uuidv4()
 
-    // Optimistic update — show message immediately
     addMessage(conversationId, {
       id: tempId,
       conversation_id: conversationId,
@@ -86,8 +97,13 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
           tempId,
         }),
       })
-      if (!res.ok) toast.error('Message failed to send')
-    } catch {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error('[MessageInput] send failed:', body)
+        toast.error('Message failed to send')
+      }
+    } catch (err) {
+      console.error('[MessageInput] send error:', err)
       toast.error('Message failed to send')
     }
   }, [user, addMessage, conversationId, replyTo])
@@ -133,66 +149,74 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
   if (showVoice) return <VoiceRecorder onSend={handleVoiceSend} onCancel={() => setShowVoice(false)} />
 
   return (
-    <div className="space-y-2">
-      {replyTo && (
-        <div className="flex items-center gap-2 rounded-xl border border-l-4 border-l-primary bg-muted px-3 py-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-primary">{replyTo.senderName}</p>
-            <p className="text-xs text-muted-foreground truncate">{replyTo.content || '[media]'}</p>
-          </div>
-          <button onClick={onClearReply} className="text-muted-foreground hover:text-foreground">
-            <FontAwesomeIcon icon={faXmark} className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-      <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/50 px-3 py-2 focus-within:border-primary transition-colors">
-        <div className="flex items-center gap-1 pb-0.5">
-          <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
-            <FontAwesomeIcon icon={faImage} className="h-4 w-4" />
-          </label>
-          <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors ml-1">
-            <input type="file" className="hidden" onChange={handleFileUpload} />
-            <FontAwesomeIcon icon={faFile} className="h-4 w-4" />
-          </label>
-        </div>
+    <div className="flex items-end gap-2">
+      {/* Media upload icons — left side */}
+      <div className="flex items-center gap-1 pb-2.5 shrink-0">
+        <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-1" title="Image / Video">
+          <input type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+          <FontAwesomeIcon icon={faImage} className="h-[18px] w-[18px]" />
+        </label>
+        <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-1" title="File">
+          <input type="file" className="hidden" onChange={handleFileUpload} />
+          <FontAwesomeIcon icon={faFile} className="h-[18px] w-[18px]" />
+        </label>
+      </div>
 
+      {/* Text area + emoji + send */}
+      <div className="flex-1 flex items-end gap-2 rounded-2xl border border-border bg-muted/50 px-3 py-2 focus-within:border-primary transition-colors min-w-0">
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder="Message..."
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-32"
+          className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground leading-relaxed self-end"
           maxLength={2000}
+          style={{ minHeight: '22px', maxHeight: '128px' }}
         />
 
-        <div className="flex items-center gap-1 pb-0.5">
-          <div className="relative">
-            <button onClick={() => setShowEmoji(!showEmoji)} className="text-muted-foreground hover:text-foreground transition-colors">
-              <FontAwesomeIcon icon={faFaceSmile} className="h-4 w-4" />
-            </button>
-            {showEmoji && (
-              <div className="absolute bottom-8 right-0 z-50">
-                <EmojiPickerComponent
-                  onEmojiClick={(d: EmojiClickData) => { setContent((c) => c + d.emoji); setShowEmoji(false) }}
-                  lazyLoadEmojis height={350}
-                />
-              </div>
-            )}
-          </div>
-
-          {content.trim() ? (
-            <Button size="icon-sm" variant="gradient" onClick={handleSendText} loading={uploadingMedia}>
-              <FontAwesomeIcon icon={faPaperPlane} className="h-3.5 w-3.5" />
-            </Button>
-          ) : (
-            <button onClick={() => setShowVoice(true)} className="text-muted-foreground hover:text-primary transition-colors" disabled={uploadingMedia}>
-              <FontAwesomeIcon icon={faMicrophone} className="h-4 w-4" />
-            </button>
+        {/* Emoji */}
+        <div className="relative shrink-0 pb-0.5">
+          <button
+            type="button"
+            onClick={() => setShowEmoji(!showEmoji)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <FontAwesomeIcon icon={faFaceSmile} className="h-[18px] w-[18px]" />
+          </button>
+          {showEmoji && (
+            <div className="absolute bottom-9 right-0 z-50">
+              <EmojiPickerComponent
+                onEmojiClick={(d: EmojiClickData) => {
+                  setContent((c) => c + d.emoji)
+                  setShowEmoji(false)
+                  textareaRef.current?.focus()
+                }}
+                lazyLoadEmojis
+                height={350}
+              />
+            </div>
           )}
         </div>
+      </div>
+
+      {/* Send / Mic — right side */}
+      <div className="pb-1.5 shrink-0">
+        {content.trim() ? (
+          <Button size="icon-sm" variant="gradient" onClick={handleSendText} loading={uploadingMedia}>
+            <FontAwesomeIcon icon={faPaperPlane} className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowVoice(true)}
+            disabled={uploadingMedia}
+            className="h-8 w-8 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary transition-colors disabled:opacity-50"
+          >
+            <FontAwesomeIcon icon={faMicrophone} className="h-[18px] w-[18px]" />
+          </button>
+        )}
       </div>
     </div>
   )

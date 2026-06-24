@@ -11,7 +11,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Use adminClient to bypass self-referential RLS on conversation_participants
     const { data: participant } = await adminClient
       .from('conversation_participants')
       .select('id')
@@ -45,15 +44,37 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const { data: messages, error } = await query
     if (error) throw error
 
-    // Update last_read_at
+    // Mark this user's messages as read
+    const readAt = new Date().toISOString()
     await adminClient
       .from('conversation_participants')
-      .update({ last_read_at: new Date().toISOString() })
+      .update({ last_read_at: readAt })
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id)
 
+    // Get the OTHER participant's last_read_at so the sender can show "seen" ticks
+    const { data: recipientRow } = await adminClient
+      .from('conversation_participants')
+      .select('last_read_at')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', user.id)
+      .maybeSingle()
+
+    // Notify others in the conversation that this user has read up to now
+    try {
+      emitToConversation(conversationId, 'messages:read', {
+        conversationId,
+        userId: user.id,
+        readAt,
+      })
+    } catch {}
+
     const nextCursor = messages && messages.length === limit ? messages[messages.length - 1].created_at : null
-    return NextResponse.json({ messages: messages?.reverse() ?? [], nextCursor })
+    return NextResponse.json({
+      messages: messages?.reverse() ?? [],
+      nextCursor,
+      recipientLastReadAt: recipientRow?.last_read_at ?? null,
+    })
   } catch (err) {
     console.error('[messages GET]', err)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })
@@ -67,7 +88,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Use adminClient to bypass self-referential RLS
     const { data: participant } = await adminClient
       .from('conversation_participants')
       .select('id')
@@ -76,7 +96,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
       .maybeSingle()
     if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { content, type = 'text', mediaUrl, fileName, fileSize, durationSeconds, replyToId, tempId } = await req.json()
+    const body = await req.json()
+    const { content, type = 'text', mediaUrl, fileName, fileSize, durationSeconds, replyToId, tempId } = body
 
     const { data: message, error } = await adminClient
       .from('messages')
@@ -101,33 +122,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
       `)
       .single()
 
-    if (error) throw error
-
-    await adminClient.from('conversations').update({
-      last_message_at: message.created_at,
-      last_message_preview: type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`,
-    }).eq('id', conversationId)
-
-    // Broadcast to everyone in the conversation room (includes sender for replaceTempMessage)
-    emitToConversation(conversationId, 'message:new', { ...message, tempId })
-
-    // Also notify recipients via their personal rooms (for unread badge when not in conversation)
-    const { data: otherParticipants } = await adminClient
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', user.id)
-
-    const conversationUpdate = {
-      conversationId,
-      lastMessageAt: message.created_at,
-      lastMessagePreview: type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`,
-      senderId: user.id,
+    if (error) {
+      console.error('[messages POST] insert error:', error)
+      throw error
     }
+    if (!message) throw new Error('Insert returned no data')
 
-    otherParticipants?.forEach(({ user_id }) => {
-      emitToUser(user_id, 'conversation:updated', conversationUpdate)
-    })
+    // Side effects: conversation update + socket notification.
+    // Wrapped in try/catch so they NEVER prevent the 201 response — the message
+    // is already in the DB at this point.
+    try {
+      const preview = type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`
+      await adminClient.from('conversations').update({
+        last_message_at: message.created_at,
+        last_message_preview: preview,
+      }).eq('id', conversationId)
+
+      emitToConversation(conversationId, 'message:new', { ...message, tempId })
+
+      const { data: others } = await adminClient
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', user.id)
+
+      others?.forEach(({ user_id }) => {
+        emitToUser(user_id, 'conversation:updated', {
+          conversationId,
+          lastMessageAt: message.created_at,
+          lastMessagePreview: preview,
+          senderId: user.id,
+        })
+      })
+    } catch (sideErr) {
+      console.error('[messages POST] non-fatal side-effect error:', sideErr)
+    }
 
     return NextResponse.json({ message }, { status: 201 })
   } catch (err) {

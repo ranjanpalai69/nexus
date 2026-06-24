@@ -12,7 +12,7 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { formatMessageTime, bytesToHuman, secondsToTime } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faDownload, faPlay, faReply, faRotateRight } from '@fortawesome/free-solid-svg-icons'
+import { faDownload, faPlay, faReply, faRotateRight, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { useUIStore } from '@/store/uiStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { MessageWithSender } from '@/types/database'
@@ -21,9 +21,44 @@ interface MessageThreadProps {
   conversationId: string
 }
 
-// Stable fallback avoids creating a new [] on every selector call (which would make
-// useSyncExternalStore see an "unstable snapshot" and loop infinitely — React #185).
 const EMPTY_MESSAGES: MessageWithSender[] = []
+
+// Linkify URLs in text content
+function renderText(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  )
+}
+
+function SeenTick({ isSeen, isMine }: { isSeen: boolean; isMine: boolean }) {
+  if (!isMine) return null
+  if (isSeen) {
+    return (
+      <span className="inline-flex items-center ml-1 text-blue-400" title="Seen">
+        <FontAwesomeIcon icon={faCheck} className="h-2.5 w-2.5" />
+        <FontAwesomeIcon icon={faCheck} className="h-2.5 w-2.5 -ml-1" />
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center ml-1 text-white/50" title="Sent">
+      <FontAwesomeIcon icon={faCheck} className="h-2.5 w-2.5" />
+    </span>
+  )
+}
 
 export function MessageThread({ conversationId }: MessageThreadProps) {
   const user = useAuthStore((s) => s.user)
@@ -34,6 +69,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<{ id: string; content: string | null; senderName: string } | null>(null)
+  const [recipientLastReadAt, setRecipientLastReadAt] = useState<string | null>(null)
   const isNearBottomRef = useRef(true)
   const mountTimeRef = useRef(Date.now())
   const { ref: topRef, inView: topInView } = useInView()
@@ -64,54 +100,51 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     retry: 1,
   })
 
-  // On every mount: reset the mount-time ref and force a fresh DB fetch.
-  // staleTime:Infinity would normally keep the cache forever, but we want
-  // authoritative data each time the user opens a conversation.
   useEffect(() => {
     mountTimeRef.current = Date.now()
     queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
   }, [conversationId, queryClient])
 
-  // Seed store from query data.
-  // Guard: only use data that was fetched AFTER this component mounted
-  // (prevents stale cache from overwriting socket-appended messages on remount).
-  // Merge: fresh DB data wins for overlapping messages, but socket-appended
-  // messages that aren't yet in the cache are preserved.
+  // Seed store from query data and capture recipient's last_read_at
   useEffect(() => {
     if (!data?.pages) return
-    // Skip if this is cached data from before we mounted
     if (dataUpdatedAt < mountTimeRef.current) return
 
     const fetched: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
     const fetchedIds = new Set(fetched.map((m) => m.id))
 
-    // Keep any messages in the store that the DB fetch didn't return yet
-    // (they arrived via socket while the fetch was in-flight)
     const current = useChatStore.getState().messages[conversationId] ?? []
     const socketOnly = current.filter((m) => !fetchedIds.has(m.id))
 
     const merged = [...fetched, ...socketOnly].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
-
     setMessages(conversationId, merged)
+
+    // Capture recipientLastReadAt from first page (most recent fetch)
+    const firstPage = data.pages[0]
+    if (firstPage?.recipientLastReadAt) {
+      setRecipientLastReadAt((prev) => {
+        if (!prev || new Date(firstPage.recipientLastReadAt) > new Date(prev)) {
+          return firstPage.recipientLastReadAt
+        }
+        return prev
+      })
+    }
   }, [data, dataUpdatedAt, conversationId, setMessages])
 
-  // Track scroll position to control auto-scroll behaviour
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current
     if (!el) return
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
   }, [])
 
-  // Auto-scroll when new messages arrive (only if user is near the bottom)
   useEffect(() => {
     if (isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: conversationMessages.length <= 50 ? 'instant' : 'smooth' })
     }
   }, [conversationMessages.length])
 
-  // Scroll to bottom on initial load
   useEffect(() => {
     if (!isLoading) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' })
@@ -119,7 +152,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     }
   }, [isLoading])
 
-  // Join conversation room and re-join on socket reconnect
+  // Join conversation room; listen for messages:read socket event
   useEffect(() => {
     if (!user) return
     const socket = getSocket(user.id)
@@ -128,13 +161,23 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     const onReconnect = () => socket.emit('conversation:join', conversationId)
     socket.on('connect', onReconnect)
 
+    // When the recipient reads messages, update the "seen" tick
+    const onRead = (payload: { conversationId: string; userId: string; readAt: string }) => {
+      if (payload.conversationId !== conversationId || payload.userId === user.id) return
+      setRecipientLastReadAt((prev) => {
+        if (!prev || new Date(payload.readAt) > new Date(prev)) return payload.readAt
+        return prev
+      })
+    }
+    socket.on('messages:read', onRead)
+
     return () => {
       socket.emit('conversation:leave', conversationId)
       socket.off('connect', onReconnect)
+      socket.off('messages:read', onRead)
     }
   }, [conversationId, user])
 
-  // Paginate when the sentinel at the top enters view
   useEffect(() => {
     if (topInView && hasNextPage && !isFetchingNextPage) fetchNextPage()
   }, [topInView, hasNextPage, isFetchingNextPage, fetchNextPage])
@@ -147,6 +190,12 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     const showTimestamp =
       !prevMsg ||
       new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000
+
+    // A message is "seen" if the recipient's last_read_at is after this message's created_at
+    const isSeen =
+      isMine &&
+      !!recipientLastReadAt &&
+      new Date(recipientLastReadAt) >= new Date(msg.created_at)
 
     return (
       <motion.div
@@ -194,7 +243,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
               )}
             >
               {msg.type === 'text' && (
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{renderText(msg.content ?? '')}</p>
               )}
 
               {msg.type === 'image' && msg.media_url && (
@@ -240,6 +289,16 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
                     {msg.file_size && <p className="text-[10px] opacity-70">{bytesToHuman(msg.file_size)}</p>}
                   </div>
                 </a>
+              )}
+
+              {/* Time + seen tick inline on my messages */}
+              {isMine && (
+                <div className="flex items-center justify-end gap-0.5 mt-0.5">
+                  <span className="text-[10px] text-white/60 leading-none">
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <SeenTick isSeen={isSeen} isMine={isMine} />
+                </div>
               )}
             </div>
           </div>
@@ -293,7 +352,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
         ) : conversationMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">No messages yet</p>
-            <p className="text-xs mt-1 opacity-60">Say hello 👋</p>
+            <p className="text-xs mt-1 opacity-60">Say hello</p>
           </div>
         ) : (
           conversationMessages.map((msg, idx) => renderMessage(msg, idx))

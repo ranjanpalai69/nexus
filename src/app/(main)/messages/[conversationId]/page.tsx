@@ -16,6 +16,18 @@ import { cn } from '@/lib/utils/cn'
 import Link from 'next/link'
 import type { ConversationWithDetails, Profile } from '@/types/database'
 
+function formatLastSeen(iso: string | null | undefined): string {
+  if (!iso) return 'Offline'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 1) return 'Last seen just now'
+  if (mins < 60) return `Last seen ${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `Last seen ${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `Last seen ${days}d ago`
+}
+
 export default function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = use(params)
   const currentUser = useAuthStore((s) => s.user)
@@ -23,6 +35,7 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
   const clearConversationUnread = useChatStore((s) => s.clearConversationUnread)
   const isUserOnline = useChatStore((s) => s.isUserOnline)
+  const allTypingUsers = useChatStore((s) => s.typingUsers)
   const router = useRouter()
 
   useEffect(() => {
@@ -31,8 +44,6 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     return () => setActiveConversation(null)
   }, [conversationId, setActiveConversation, clearConversationUnread])
 
-  // Shares query key with ConversationList — React Query deduplicates the fetch.
-  // queryFn is kept pure (no side effects) to avoid React update-during-render errors.
   const { data: conversationsData } = useQuery<ConversationWithDetails[]>({
     queryKey: ['conversations'],
     queryFn: async () => {
@@ -44,16 +55,23 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     refetchOnWindowFocus: true,
   })
 
-  // Sync to Zustand store for real-time socket updates to flow back
   useEffect(() => {
     if (conversationsData) setConversations(conversationsData)
   }, [conversationsData, setConversations])
 
   const conversation = conversationsData?.find((c) => c.id === conversationId)
-  const otherParticipant: Profile | undefined = conversation?.participants
-    ?.find((p) => p.user_id !== currentUser?.id)?.profile
+  const otherParticipant: (Profile & { last_seen?: string | null }) | undefined =
+    conversation?.participants?.find((p) => p.user_id !== currentUser?.id)?.profile
 
   const online = otherParticipant ? isUserOnline(otherParticipant.id) : false
+
+  // Typing: is the other user currently typing in this conversation?
+  const otherIsTyping = otherParticipant
+    ? allTypingUsers.some(
+        (t) => t.conversationId === conversationId && t.userId === otherParticipant.id
+      )
+    : false
+
   const [showNewMessage, setShowNewMessage] = useState(false)
 
   return (
@@ -90,10 +108,21 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
                     {otherParticipant.full_name || otherParticipant.username}
                   </p>
                 </Link>
-                <p className={cn('text-xs flex items-center gap-1', online ? 'text-emerald-500' : 'text-muted-foreground')}>
-                  <FontAwesomeIcon icon={faCircle} className="h-1.5 w-1.5" />
-                  {online ? 'Online' : 'Offline'}
-                </p>
+                {otherIsTyping ? (
+                  <p className="text-xs text-primary flex items-center gap-1">
+                    <span className="relative flex gap-0.5 items-end h-3">
+                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+                    </span>
+                    typing...
+                  </p>
+                ) : (
+                  <p className={cn('text-xs flex items-center gap-1', online ? 'text-emerald-500' : 'text-muted-foreground')}>
+                    <FontAwesomeIcon icon={faCircle} className="h-1.5 w-1.5" />
+                    {online ? 'Online' : formatLastSeen(otherParticipant.last_seen)}
+                  </p>
+                )}
               </div>
             </>
           )}
