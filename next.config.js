@@ -16,6 +16,18 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '10mb' },
   },
+  async headers() {
+    return [
+      {
+        // Service worker must never be cached — browsers won't pick up updates otherwise
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig
