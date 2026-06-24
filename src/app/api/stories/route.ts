@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, adminClient } from '@/lib/supabase/server'
+import { emitToUser } from '@/lib/socket/server'
 
 const schema = z.object({
   mediaUrl:  z.string().url(),
@@ -16,7 +17,7 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Get stories from people the user follows + own stories, non-expired
+    // Stories from people the user follows + own stories, not expired
     const { data: following } = await supabase
       .from('follows').select('following_id').eq('follower_id', user.id)
     const ids = [...(following ?? []).map((f) => f.following_id), user.id]
@@ -28,12 +29,25 @@ export async function GET() {
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
 
-    // Get which stories current user has viewed
     const storyIds = (stories ?? []).map((s) => s.id)
+
+    // Get which stories current user has viewed
     const { data: views } = storyIds.length
       ? await supabase.from('story_views').select('story_id').eq('viewer_id', user.id).in('story_id', storyIds)
       : { data: [] }
     const viewedSet = new Set((views ?? []).map((v) => v.story_id))
+
+    // Get which stories current user has liked (graceful if table doesn't exist yet)
+    let likedSet = new Set<string>()
+    if (storyIds.length) {
+      const { data: likes } = await supabase
+        .from('story_likes')
+        .select('story_id')
+        .eq('user_id', user.id)
+        .in('story_id', storyIds)
+        .catch(() => ({ data: [] }))
+      likedSet = new Set((likes ?? []).map((l) => l.story_id))
+    }
 
     // Group by user
     const grouped: Record<string, { user: object; stories: object[]; hasUnviewed: boolean }> = {}
@@ -41,7 +55,12 @@ export async function GET() {
       const uid = story.user_id
       if (!grouped[uid]) grouped[uid] = { user: story.author, stories: [], hasUnviewed: false }
       const viewed = viewedSet.has(story.id)
-      grouped[uid].stories.push({ ...story, viewed })
+      grouped[uid].stories.push({
+        ...story,
+        viewed,
+        liked_by_me: likedSet.has(story.id),
+        likes_count: story.likes_count ?? 0,
+      })
       if (!viewed) grouped[uid].hasUnviewed = true
     }
 
@@ -76,6 +95,21 @@ export async function POST(req: Request) {
       .single()
 
     if (error) throw error
+
+    // Notify followers in real-time so their stories bar updates immediately
+    try {
+      const { data: followers } = await adminClient
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', user.id)
+
+      const payload = { userId: user.id }
+      ;(followers ?? []).forEach(({ follower_id }) => emitToUser(follower_id, 'story:new', payload))
+      emitToUser(user.id, 'story:new', payload)
+    } catch {
+      // real-time notification is best-effort
+    }
+
     return NextResponse.json({ story }, { status: 201 })
   } catch (err) {
     console.error('[stories POST]', err)

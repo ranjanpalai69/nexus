@@ -60,6 +60,11 @@ export function useSocket() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     }
 
+    // ── Stories ───────────────────────────────────────────────────
+    const handleStoryNew = () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] })
+    }
+
     // ── Follow updates ────────────────────────────────────────────
     const handleFollowUpdate = (data: {
       type: 'follow' | 'unfollow'
@@ -107,6 +112,7 @@ export function useSocket() {
     socket.on('notification:new', handleNotification)
     socket.on('user:follow_update', handleFollowUpdate)
     socket.on('conversation:updated', handleConversationUpdated)
+    socket.on('story:new', handleStoryNew)
 
     return () => {
       socket.off('user:online', handleOnline)
@@ -117,6 +123,7 @@ export function useSocket() {
       socket.off('notification:new', handleNotification)
       socket.off('user:follow_update', handleFollowUpdate)
       socket.off('conversation:updated', handleConversationUpdated)
+      socket.off('story:new', handleStoryNew)
     }
   }, [userId, queryClient])
 

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils/cn'
 
 interface StoryGroup {
   user: { id: string; username: string; full_name: string | null; avatar_url: string | null; is_verified?: boolean; online_status: boolean }
-  stories: { id: string; media_url: string; media_type: string; caption?: string | null; views_count: number; created_at: string; expires_at: string; viewed?: boolean; author: { id: string; username: string; full_name: string | null; avatar_url: string | null; online_status: boolean } }[]
+  stories: { id: string; media_url: string; media_type: string; caption?: string | null; views_count: number; likes_count?: number; liked_by_me?: boolean; created_at: string; expires_at: string; viewed?: boolean; author: { id: string; username: string; full_name: string | null; avatar_url: string | null; online_status?: boolean } }[]
   hasUnviewed: boolean
 }
 
