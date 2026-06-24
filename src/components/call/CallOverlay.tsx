@@ -10,6 +10,7 @@ import { useCallStore } from '@/store/callStore'
 import type { ActiveCall } from '@/store/callStore'
 import { getSocket } from '@/lib/socket/client'
 import { useAuthStore } from '@/store/authStore'
+import { subscribeCallEvents, resetCallEvents } from '@/lib/callEvents'
 import toast from 'react-hot-toast'
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -33,13 +34,13 @@ function playDeclineSound() {
       osc.connect(gain)
       gain.connect(ctx.destination)
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(480 - offset * 200, ctx.currentTime + offset)
+      osc.frequency.setValueAtTime(440 - offset * 80, ctx.currentTime + offset)
       gain.gain.setValueAtTime(0.15, ctx.currentTime + offset)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.16)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18)
       osc.start(ctx.currentTime + offset)
-      osc.stop(ctx.currentTime + offset + 0.16)
+      osc.stop(ctx.currentTime + offset + 0.18)
     })
-    setTimeout(() => ctx.close(), 600)
+    setTimeout(() => ctx.close(), 700)
   } catch {}
 }
 
@@ -62,7 +63,7 @@ export function CallOverlay() {
   const callRef = useRef<ActiveCall | null>(null)
   callRef.current = activeCall
 
-  // Queues for events that arrive before the peer connection is ready
+  // Buffers for events that arrive before the PeerConnection is ready
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
   const pendingAcceptRef = useRef(false)
@@ -88,7 +89,7 @@ export function CallOverlay() {
     setActiveCall(null)
   }, [userId, setActiveCall, cleanupRefs])
 
-  // ── Main WebRTC effect ──────────────────────────────────────────────
+  // ── Main effect ────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeCall || !userId) return
 
@@ -96,6 +97,7 @@ export function CallOverlay() {
     const socket = getSocket(userId)
     let dead = false
 
+    // ── WebRTC helpers ─────────────────────────────────────────────
     const createAndSendOffer = async (pc: RTCPeerConnection) => {
       try {
         const offer = await pc.createOffer()
@@ -125,10 +127,14 @@ export function CallOverlay() {
       }
     }
 
+    // ── Init (async) ───────────────────────────────────────────────
     const init = async () => {
       let localStream: MediaStream
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' })
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: type === 'video',
+        })
       } catch {
         setStatusText('Camera/mic access denied')
         return
@@ -164,11 +170,12 @@ export function CallOverlay() {
       }
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          if (!dead) hangUp()
+        if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && !dead) {
+          hangUp()
         }
       }
 
+      // Drain any events queued before PC was ready
       if (direction === 'inbound' && pendingOfferRef.current) {
         await processOffer(pc, pendingOfferRef.current)
         pendingOfferRef.current = null
@@ -182,91 +189,86 @@ export function CallOverlay() {
 
     init()
 
-    const onAccept = async () => {
-      if (direction !== 'outbound') return
-      setStatusText('Connecting...')
-      if (!pcRef.current) {
-        pendingAcceptRef.current = true
-        return
+    // ── Subscribe to the call event bus ───────────────────────────
+    // subscribeCallEvents drains events buffered while this component wasn't mounted yet.
+    const unsubscribe = subscribeCallEvents(async (type: string, data: any) => {
+      if (dead) return
+
+      switch (type) {
+        case 'accept': {
+          if (direction !== 'outbound') return
+          setStatusText('Connecting...')
+          if (!pcRef.current) { pendingAcceptRef.current = true; return }
+          await createAndSendOffer(pcRef.current)
+          break
+        }
+
+        case 'offer': {
+          if (direction !== 'inbound') return
+          const { sdp } = data as { sdp: RTCSessionDescriptionInit }
+          if (!pcRef.current) { pendingOfferRef.current = sdp; return }
+          await processOffer(pcRef.current, sdp)
+          break
+        }
+
+        case 'answer': {
+          if (!pcRef.current) return
+          try {
+            await pcRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp))
+          } catch (err) {
+            console.error('[call] setRemoteDescription (answer) failed', err)
+          }
+          break
+        }
+
+        case 'ice': {
+          const { candidate } = data as { candidate: RTCIceCandidateInit }
+          if (!pcRef.current) { pendingCandidatesRef.current.push(candidate); return }
+          try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {}
+          break
+        }
+
+        case 'end': {
+          dead = true
+          cleanupRefs()
+          setActiveCall(null)
+          break
+        }
+
+        case 'reject': {
+          dead = true
+          playDeclineSound()
+          cleanupRefs()
+          setActiveCall(null)
+          toast('Call declined', { icon: '📵', duration: 3000, position: 'top-center' })
+          break
+        }
+
+        case 'busy': {
+          dead = true
+          playDeclineSound()
+          cleanupRefs()
+          setActiveCall(null)
+          toast('User is in another call', { icon: '📵', duration: 3000, position: 'top-center' })
+          break
+        }
       }
-      await createAndSendOffer(pcRef.current)
-    }
-
-    const onOffer = async ({ sdp }: { conversationId: string; sdp: RTCSessionDescriptionInit }) => {
-      if (direction !== 'inbound') return
-      if (!pcRef.current) {
-        pendingOfferRef.current = sdp
-        return
-      }
-      await processOffer(pcRef.current, sdp)
-    }
-
-    const onAnswer = async ({ sdp }: { conversationId: string; sdp: RTCSessionDescriptionInit }) => {
-      if (!pcRef.current) return
-      try {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
-      } catch (err) {
-        console.error('[call] setRemoteDescription (answer) failed', err)
-      }
-    }
-
-    const onIce = async ({ candidate }: { conversationId: string; candidate: RTCIceCandidateInit }) => {
-      if (!pcRef.current) {
-        pendingCandidatesRef.current.push(candidate)
-        return
-      }
-      try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {}
-    }
-
-    const onRemoteEnd = () => {
-      dead = true
-      cleanupRefs()
-      setActiveCall(null)
-    }
-
-    const onReject = () => {
-      dead = true
-      playDeclineSound()
-      cleanupRefs()
-      setActiveCall(null)
-      toast('Call declined', { icon: '📵', duration: 3000, position: 'top-center' })
-    }
-
-    const onBusy = () => {
-      dead = true
-      playDeclineSound()
-      cleanupRefs()
-      setActiveCall(null)
-      toast('User is in another call', { icon: '📵', duration: 3000, position: 'top-center' })
-    }
-
-    socket.on('call:accept', onAccept)
-    socket.on('call:offer', onOffer)
-    socket.on('call:answer', onAnswer)
-    socket.on('call:ice-candidate', onIce)
-    socket.on('call:end', onRemoteEnd)
-    socket.on('call:reject', onReject)
-    socket.on('call:busy', onBusy)
+    })
 
     return () => {
       dead = true
       pendingOfferRef.current = null
       pendingCandidatesRef.current = []
       pendingAcceptRef.current = false
-      socket.off('call:accept', onAccept)
-      socket.off('call:offer', onOffer)
-      socket.off('call:answer', onAnswer)
-      socket.off('call:ice-candidate', onIce)
-      socket.off('call:end', onRemoteEnd)
-      socket.off('call:reject', onReject)
-      socket.off('call:busy', onBusy)
+      unsubscribe()
+      resetCallEvents()
       localStreamRef.current?.getTracks().forEach((t) => t.stop())
       pcRef.current?.close()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.conversationId, activeCall?.direction, activeCall?.type, userId])
 
-  // ── Duration timer ──────────────────────────────────────────────────
+  // ── Duration timer ─────────────────────────────────────────────
   useEffect(() => {
     if (!activeCall?.startedAt) { setElapsed(0); return }
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - activeCall.startedAt!) / 1000)), 1000)
@@ -295,10 +297,8 @@ export function CallOverlay() {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[300] flex flex-col bg-gray-950 text-white select-none"
     >
-      {/* Hidden audio element for audio calls */}
       {!isVideo && <audio ref={remoteAudioRef} autoPlay playsInline />}
 
-      {/* Remote video (video calls) */}
       {isVideo && (
         <video
           ref={remoteVideoRef}
@@ -308,7 +308,7 @@ export function CallOverlay() {
         />
       )}
 
-      {/* Pre-connection overlay — only shows while NOT yet connected */}
+      {/* Pre-connection overlay — only while waiting for the other party */}
       {!isConnected && (
         <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 ${isVideo ? 'bg-gray-950/80 backdrop-blur-sm' : ''}`}>
           {activeCall.otherUserAvatar ? (
@@ -327,7 +327,7 @@ export function CallOverlay() {
         </div>
       )}
 
-      {/* Connected state — audio call only (video shows the camera feed instead) */}
+      {/* Connected audio call */}
       {isConnected && !isVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           {activeCall.otherUserAvatar ? (
@@ -343,7 +343,7 @@ export function CallOverlay() {
         </div>
       )}
 
-      {/* Local video corner (video calls) */}
+      {/* Local video corner */}
       {isVideo && (
         <div className="absolute top-4 right-4 w-28 h-36 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl z-10">
           <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />

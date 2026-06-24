@@ -14,49 +14,39 @@ async function fetchProfile(supabase: ReturnType<typeof createClient>, userId: s
 }
 
 async function ensureProfile(supabase: ReturnType<typeof createClient>, user: User) {
-  // First try: profile may already exist (normal case)
+  // Fast path: profile already exists
   const profile = await fetchProfile(supabase, user.id)
   if (profile) return profile
 
-  // Fallback: trigger might not be installed — create profile server-side
+  // Profile missing (no DB trigger or new OAuth user) — create it server-side
   try {
     const res = await fetch('/api/auth/ensure-profile', { method: 'POST' })
     if (res.ok) {
       const body = await res.json()
       if (body.profile) return body.profile
     }
-  } catch {
-    // network error — try one more direct fetch
-  }
+  } catch {}
 
+  // One final attempt in case creation just raced
   return fetchProfile(supabase, user.id)
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Use selectors so AuthProvider doesn't re-render on every auth store change
   const setUser = useAuthStore((s) => s.setUser)
-  const setLoading = useAuthStore((s) => s.setLoading)
   const supabase = createClient()
 
   useEffect(() => {
-    setLoading(true)
-
-    // Initial session check
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (user) {
-        const profile = await fetchProfile(supabase, user.id)
-        setUser(profile)
-      } else {
-        setUser(null)
-      }
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // onAuthStateChange fires immediately with INITIAL_SESSION for existing sessions,
+    // then fires SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED on subsequent changes.
+    // We use this as the single source of truth — no separate getUser() call needed.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // On sign-in / sign-up, ensure the profile exists before setting user
-        const profile = (event === 'SIGNED_IN' || event === 'USER_UPDATED')
+        // Always ensure profile on session start / sign-in events.
+        // TOKEN_REFRESHED just needs a fast fetch (profile already exists).
+        const needsEnsure = event === 'SIGNED_IN'
+          || event === 'USER_UPDATED'
+          || event === 'INITIAL_SESSION'
+        const profile = needsEnsure
           ? await ensureProfile(supabase, session.user)
           : await fetchProfile(supabase, session.user.id)
         setUser(profile)

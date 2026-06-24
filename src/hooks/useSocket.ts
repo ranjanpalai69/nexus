@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import type { MessageWithSender, NotificationWithActor } from '@/types/database'
 import { useCallStore } from '@/store/callStore'
 import type { IncomingCall } from '@/store/callStore'
+import { emitCallEvent } from '@/lib/callEvents'
 
 let _audioCtx: AudioContext | null = null
 
@@ -55,7 +56,6 @@ export function useSocket() {
     }
     const handleOffline = ({ userId: uid, lastSeen }: { userId: string; lastSeen?: string }) => {
       useChatStore.getState().setUserOnline(uid, false)
-      // Update last_seen on the cached profile so header shows correct time
       if (lastSeen) {
         const convs = useChatStore.getState().conversations
         convs.forEach((conv) => {
@@ -71,17 +71,13 @@ export function useSocket() {
       const isActive = message.conversation_id === store.activeConversationId
 
       if (message.tempId && message.sender_id === userId) {
-        // Replace our own optimistic message with the real one from the server
         store.replaceTempMessage(message.conversation_id, message.tempId, message)
       } else if (message.sender_id !== userId) {
-        // Message from someone else
         store.addMessage(message.conversation_id, message)
 
         if (isActive) {
-          // User is currently viewing this conversation → instantly mark as read
           socket.emit('messages:read', { conversationId: message.conversation_id })
         } else {
-          // User is elsewhere → increment unread badge + notify
           store.incrementConversationUnread(message.conversation_id)
           playNotificationSound()
 
@@ -115,12 +111,10 @@ export function useSocket() {
       useChatStore.getState().setTyping(typingId, conversationId, false)
     }
 
-    // ── Read receipts (from the conversation room) ────────────────
+    // ── Read receipts ────────────────────────────────────────────
     const handleMessagesRead = ({ conversationId, userId: readerId, readAt }: {
       conversationId: string; userId: string; readAt: string
     }) => {
-      // Update the other participant's last_read_at in the conversations store
-      // so the tick in the conversation list updates in real-time
       const store = useChatStore.getState()
       const conv = store.conversations.find((c) => c.id === conversationId)
       if (conv) {
@@ -158,7 +152,7 @@ export function useSocket() {
       }
     }
 
-    // ── Conversation updates (personal room) ──────────────────────
+    // ── Conversation updates ──────────────────────────────────────
     const handleConversationUpdated = (data: {
       conversationId: string
       lastMessageAt: string
@@ -177,12 +171,11 @@ export function useSocket() {
           store.incrementConversationUnread(data.conversationId)
         }
       } else {
-        // Conversation not in store yet (first message from this person) → reload list
         queryClient.invalidateQueries({ queryKey: ['conversations'] })
       }
     }
 
-    // ── Incoming call ─────────────────────────────────────────────
+    // ── Call: modal events (set/clear incomingCall) ───────────────
     const handleCallInvite = (data: IncomingCall) => {
       const { activeCall } = useCallStore.getState()
       if (activeCall) {
@@ -192,15 +185,23 @@ export function useSocket() {
       useCallStore.getState().setIncomingCall(data)
     }
 
-    const handleCallEnd = () => {
-      // If call ends while we haven't answered yet (missed call), clear incoming call modal
+    const handleCallCancel = () => {
       useCallStore.getState().setIncomingCall(null)
     }
 
-    const handleCallCancel = () => {
-      // Caller cancelled before we answered
-      useCallStore.getState().setIncomingCall(null)
+    // ── Call: WebRTC signaling → forwarded to callEvents bus ──────
+    // useSocket is always mounted; CallOverlay subscribes to the bus on mount.
+    // This prevents events from being dropped when CallOverlay hasn't rendered yet.
+    const handleCallAccept = (data: unknown) => emitCallEvent('accept', data)
+    const handleCallOffer = (data: unknown) => emitCallEvent('offer', data)
+    const handleCallAnswer = (data: unknown) => emitCallEvent('answer', data)
+    const handleCallIce = (data: unknown) => emitCallEvent('ice', data)
+    const handleCallEnd = (data: unknown) => {
+      emitCallEvent('end', data)
+      useCallStore.getState().setIncomingCall(null) // clear missed-call modal if open
     }
+    const handleCallReject = (data: unknown) => emitCallEvent('reject', data)
+    const handleCallBusy = (data: unknown) => emitCallEvent('busy', data)
 
     socket.on('user:online', handleOnline)
     socket.on('user:offline', handleOffline)
@@ -213,8 +214,14 @@ export function useSocket() {
     socket.on('conversation:updated', handleConversationUpdated)
     socket.on('story:new', handleStoryNew)
     socket.on('call:invite', handleCallInvite)
-    socket.on('call:end', handleCallEnd)
     socket.on('call:cancel', handleCallCancel)
+    socket.on('call:accept', handleCallAccept)
+    socket.on('call:offer', handleCallOffer)
+    socket.on('call:answer', handleCallAnswer)
+    socket.on('call:ice-candidate', handleCallIce)
+    socket.on('call:end', handleCallEnd)
+    socket.on('call:reject', handleCallReject)
+    socket.on('call:busy', handleCallBusy)
 
     return () => {
       socket.off('user:online', handleOnline)
@@ -228,8 +235,14 @@ export function useSocket() {
       socket.off('conversation:updated', handleConversationUpdated)
       socket.off('story:new', handleStoryNew)
       socket.off('call:invite', handleCallInvite)
-      socket.off('call:end', handleCallEnd)
       socket.off('call:cancel', handleCallCancel)
+      socket.off('call:accept', handleCallAccept)
+      socket.off('call:offer', handleCallOffer)
+      socket.off('call:answer', handleCallAnswer)
+      socket.off('call:ice-candidate', handleCallIce)
+      socket.off('call:end', handleCallEnd)
+      socket.off('call:reject', handleCallReject)
+      socket.off('call:busy', handleCallBusy)
     }
   }, [userId, queryClient])
 
