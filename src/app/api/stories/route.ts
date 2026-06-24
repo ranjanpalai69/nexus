@@ -22,31 +22,42 @@ export async function GET() {
       .from('follows').select('following_id').eq('follower_id', user.id)
     const ids = [...(following ?? []).map((f) => f.following_id), user.id]
 
-    const { data: stories } = await supabase
+    const { data: stories, error: storiesError } = await adminClient
       .from('stories')
       .select(`*, author:profiles!stories_user_id_fkey(id, username, full_name, avatar_url, is_verified)`)
       .in('user_id', ids)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
 
+    if (storiesError) {
+      console.error('[stories GET] query error (run migration 002_stories_v2.sql):', storiesError.message)
+      return NextResponse.json({ groups: [] })
+    }
+
     const storyIds = (stories ?? []).map((s) => s.id)
 
     // Get which stories current user has viewed
-    const { data: views } = storyIds.length
-      ? await supabase.from('story_views').select('story_id').eq('viewer_id', user.id).in('story_id', storyIds)
-      : { data: [] }
-    const viewedSet = new Set((views ?? []).map((v) => v.story_id))
+    let viewedSet = new Set<string>()
+    if (storyIds.length) {
+      const { data: views } = await adminClient
+        .from('story_views')
+        .select('story_id')
+        .eq('viewer_id', user.id)
+        .in('story_id', storyIds)
+      if (views) viewedSet = new Set(views.map((v) => v.story_id))
+    }
 
-    // Get which stories current user has liked (graceful if table doesn't exist yet)
+    // Get which stories current user has liked (story_likes table may not exist yet)
     let likedSet = new Set<string>()
     if (storyIds.length) {
-      const { data: likes } = await supabase
+      const { data: likes, error: likesError } = await supabase
         .from('story_likes')
         .select('story_id')
         .eq('user_id', user.id)
         .in('story_id', storyIds)
-        .catch(() => ({ data: [] }))
-      likedSet = new Set((likes ?? []).map((l) => l.story_id))
+      if (!likesError && likes) {
+        likedSet = new Set(likes.map((l) => l.story_id))
+      }
     }
 
     // Group by user
