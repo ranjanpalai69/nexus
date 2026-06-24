@@ -4,13 +4,5 @@ import { LoginForm } from '@/components/auth/LoginForm'
 export const metadata: Metadata = { title: 'Sign In' }
 
 export default function LoginPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Welcome back</h2>
-        <p className="text-muted-foreground mt-1">Sign in to continue to Nexus</p>
-      </div>
-      <LoginForm />
-    </div>
-  )
+  return <LoginForm />
 }

@@ -12,7 +12,7 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { formatMessageTime, bytesToHuman, secondsToTime } from '@/lib/utils/helpers'
 import { cn } from '@/lib/utils/cn'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faDownload, faPlay, faReply } from '@fortawesome/free-solid-svg-icons'
+import { faDownload, faPlay, faReply, faRotateRight } from '@fortawesome/free-solid-svg-icons'
 import { useUIStore } from '@/store/uiStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { MessageWithSender } from '@/types/database'
@@ -23,55 +23,84 @@ interface MessageThreadProps {
 
 export function MessageThread({ conversationId }: MessageThreadProps) {
   const user = useAuthStore((s) => s.user)
-  const { messages, setMessages } = useChatStore()
+  const conversationMessages = useChatStore((s) => s.messages[conversationId] ?? [])
+  const setMessages = useChatStore((s) => s.setMessages)
   const { openMediaViewer } = useUIStore()
   const queryClient = useQueryClient()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<{ id: string; content: string | null; senderName: string } | null>(null)
   const isNearBottomRef = useRef(true)
+  const mountTimeRef = useRef(Date.now())
   const { ref: topRef, inView: topInView } = useInView()
 
-  const conversationMessages = messages[conversationId] ?? []
-
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
+  const {
+    data,
+    dataUpdatedAt,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ['messages', conversationId],
     queryFn: async ({ pageParam }) => {
       const res = await fetch(`/api/messages/${conversationId}?cursor=${pageParam || ''}`)
-      if (!res.ok) throw new Error('Failed to fetch messages')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `${res.status}`)
+      }
       return res.json()
     },
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    retry: 1,
   })
 
-  // Force a fresh fetch every time this conversation is opened so we get authoritative DB data.
-  // staleTime:Infinity prevents background re-fetches while chatting, but we still want
-  // fresh data on each mount (catches messages that arrived while the user was away).
+  // On every mount: reset the mount-time ref and force a fresh DB fetch.
+  // staleTime:Infinity would normally keep the cache forever, but we want
+  // authoritative data each time the user opens a conversation.
   useEffect(() => {
+    mountTimeRef.current = Date.now()
     queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
   }, [conversationId, queryClient])
 
-  // Seed store from fresh DB data. Guard: never overwrite existing messages with an empty
-  // result (prevents flash of "No messages" while the background refetch is in-flight).
+  // Seed store from query data.
+  // Guard: only use data that was fetched AFTER this component mounted
+  // (prevents stale cache from overwriting socket-appended messages on remount).
+  // Merge: fresh DB data wins for overlapping messages, but socket-appended
+  // messages that aren't yet in the cache are preserved.
   useEffect(() => {
     if (!data?.pages) return
-    const all: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
-    const currentCount = useChatStore.getState().messages[conversationId]?.length ?? 0
-    if (all.length === 0 && currentCount > 0) return
-    setMessages(conversationId, all)
-  }, [data, conversationId, setMessages])
+    // Skip if this is cached data from before we mounted
+    if (dataUpdatedAt < mountTimeRef.current) return
 
-  // Track whether user is near bottom to control auto-scroll
+    const fetched: MessageWithSender[] = data.pages.flatMap((p) => p.messages)
+    const fetchedIds = new Set(fetched.map((m) => m.id))
+
+    // Keep any messages in the store that the DB fetch didn't return yet
+    // (they arrived via socket while the fetch was in-flight)
+    const current = useChatStore.getState().messages[conversationId] ?? []
+    const socketOnly = current.filter((m) => !fetchedIds.has(m.id))
+
+    const merged = [...fetched, ...socketOnly].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+
+    setMessages(conversationId, merged)
+  }, [data, dataUpdatedAt, conversationId, setMessages])
+
+  // Track scroll position to control auto-scroll behaviour
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current
     if (!el) return
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
   }, [])
 
-  // Auto-scroll to bottom only when near bottom (new message arrives) or initial load
+  // Auto-scroll when new messages arrive (only if user is near the bottom)
   useEffect(() => {
     if (isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: conversationMessages.length <= 50 ? 'instant' : 'smooth' })
@@ -86,7 +115,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     }
   }, [isLoading])
 
-  // Join conversation room and re-join after socket reconnects
+  // Join conversation room and re-join on socket reconnect
   useEffect(() => {
     if (!user) return
     const socket = getSocket(user.id)
@@ -101,6 +130,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     }
   }, [conversationId, user])
 
+  // Paginate when the sentinel at the top enters view
   useEffect(() => {
     if (topInView && hasNextPage && !isFetchingNextPage) fetchNextPage()
   }, [topInView, hasNextPage, isFetchingNextPage, fetchNextPage])
@@ -110,7 +140,8 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     const sender = msg.sender
     const prevMsg = conversationMessages[idx - 1]
     const showAvatar = !isMine && (!prevMsg || prevMsg.sender_id !== msg.sender_id)
-    const showTimestamp = !prevMsg ||
+    const showTimestamp =
+      !prevMsg ||
       new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000
 
     return (
@@ -129,7 +160,6 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
         )}
 
         <div className={cn('flex gap-2 group', isMine ? 'flex-row-reverse' : 'flex-row', 'mb-0.5')}>
-          {/* Avatar placeholder to align messages */}
           <div className="w-7 shrink-0">
             {showAvatar && !isMine && sender && (
               <UserAvatar user={sender} size="xs" className="mt-auto" />
@@ -138,10 +168,12 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
 
           <div className={cn('max-w-[72%] space-y-0.5', isMine && 'items-end flex flex-col')}>
             {msg.reply_to && (
-              <div className={cn(
-                'rounded-xl border-l-4 bg-muted/60 px-2.5 py-1.5 text-xs opacity-80 mb-0.5',
-                isMine ? 'border-l-indigo-400' : 'border-l-primary'
-              )}>
+              <div
+                className={cn(
+                  'rounded-xl border-l-4 bg-muted/60 px-2.5 py-1.5 text-xs opacity-80 mb-0.5',
+                  isMine ? 'border-l-indigo-400' : 'border-l-primary'
+                )}
+              >
                 <p className="font-semibold text-primary/80">
                   {(msg.reply_to as MessageWithSender).sender?.username ?? 'Unknown'}
                 </p>
@@ -149,12 +181,14 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
               </div>
             )}
 
-            <div className={cn(
-              'rounded-2xl px-3.5 py-2 text-sm break-words',
-              isMine
-                ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
-                : 'rounded-tl-sm bg-muted text-foreground'
-            )}>
+            <div
+              className={cn(
+                'rounded-2xl px-3.5 py-2 text-sm break-words',
+                isMine
+                  ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
+                  : 'rounded-tl-sm bg-muted text-foreground'
+              )}
+            >
               {msg.type === 'text' && (
                 <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
               )}
@@ -187,8 +221,13 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
               )}
 
               {msg.type === 'file' && msg.media_url && (
-                <a href={msg.media_url} download={msg.file_name} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <a
+                  href={msg.media_url}
+                  download={msg.file_name}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                >
                   <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                     <FontAwesomeIcon icon={faDownload} className="h-3.5 w-3.5" />
                   </div>
@@ -201,9 +240,10 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
             </div>
           </div>
 
-          {/* Reply button — appears on hover */}
           <button
-            onClick={() => setReplyTo({ id: msg.id, content: msg.content, senderName: sender?.username ?? 'You' })}
+            onClick={() =>
+              setReplyTo({ id: msg.id, content: msg.content, senderName: sender?.username ?? 'You' })
+            }
             className={cn(
               'opacity-0 group-hover:opacity-100 self-end mb-1 text-muted-foreground hover:text-foreground transition-all',
               isMine ? 'mr-1' : 'ml-1'
@@ -226,10 +266,26 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
       >
         <div ref={topRef} className="h-1" />
         {isFetchingNextPage && (
-          <div className="flex justify-center py-2"><LoadingSpinner size="sm" /></div>
+          <div className="flex justify-center py-2">
+            <LoadingSpinner size="sm" />
+          </div>
         )}
+
         {isLoading ? (
-          <div className="flex justify-center py-12"><LoadingSpinner /></div>
+          <div className="flex justify-center py-12">
+            <LoadingSpinner />
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <p className="text-sm font-medium">Could not load messages</p>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              <FontAwesomeIcon icon={faRotateRight} className="h-3 w-3" />
+              Try again
+            </button>
+          </div>
         ) : conversationMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">No messages yet</p>
@@ -238,6 +294,7 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
         ) : (
           conversationMessages.map((msg, idx) => renderMessage(msg, idx))
         )}
+
         <TypingIndicator conversationId={conversationId} />
         <div ref={bottomRef} className="h-1" />
       </div>
@@ -255,7 +312,12 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
                 <p className="text-xs font-semibold text-primary">{replyTo.senderName}</p>
                 <p className="text-xs text-muted-foreground truncate">{replyTo.content || '[media]'}</p>
               </div>
-              <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground text-xs shrink-0">✕</button>
+              <button
+                onClick={() => setReplyTo(null)}
+                className="text-muted-foreground hover:text-foreground text-xs shrink-0"
+              >
+                ✕
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

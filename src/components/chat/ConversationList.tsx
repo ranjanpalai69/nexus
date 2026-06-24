@@ -20,8 +20,9 @@ export function ConversationList() {
     queryFn: async () => {
       const res = await fetch('/api/messages')
       const data = await res.json()
-      setConversations(data.conversations ?? [])
-      return data.conversations
+      const convs = data.conversations ?? []
+      setConversations(convs)
+      return convs
     },
     staleTime: 10 * 1000,
     refetchOnWindowFocus: true,
