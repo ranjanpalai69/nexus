@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const { data: rawMessages, error: msgError } = await query
     if (msgError) throw msgError
 
-    // Enrich messages with sender profiles in a single join query
+    // Enrich messages with sender profiles
     const messages = rawMessages ?? []
     const senderIds = [...new Set(messages.map((m) => m.sender_id).filter(Boolean))]
     const replyToIds = [...new Set(messages.map((m) => m.reply_to_id).filter(Boolean))]
@@ -53,7 +53,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
         : Promise.resolve({ data: [] }),
     ])
 
-    const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
+    // Collect ALL profile IDs needed (main senders + reply-message senders)
+    const replySenderIds = [...new Set((replyMsgs ?? []).map((m) => m.sender_id).filter(Boolean))]
+    const missingIds = replySenderIds.filter((id) => !senderIds.includes(id))
+    const { data: replyProfiles } = missingIds.length
+      ? await adminClient.from('profiles').select('id, username, full_name, avatar_url').in('id', missingIds)
+      : { data: [] }
+
+    const profileMap = Object.fromEntries(
+      [...(profiles ?? []), ...(replyProfiles ?? [])].map((p) => [p.id, p])
+    )
     const replyMap = Object.fromEntries((replyMsgs ?? []).map((m) => [m.id, { ...m, sender: profileMap[m.sender_id] }]))
 
     const enriched = messages.map((m) => ({
