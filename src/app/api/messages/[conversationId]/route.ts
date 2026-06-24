@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, adminClient } from '@/lib/supabase/server'
 import { emitToConversation, emitToUser } from '@/lib/socket/server'
+import { pushMessage } from '@/lib/push/sender'
 
 export async function GET(req: Request, { params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = await params
@@ -197,6 +198,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
         .eq('conversation_id', conversationId)
         .neq('user_id', user.id)
 
+      const senderName = senderProfile?.full_name || senderProfile?.username || 'New message'
       others?.forEach(({ user_id }) => {
         emitToUser(user_id, 'conversation:updated', {
           conversationId,
@@ -204,6 +206,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
           lastMessagePreview: preview,
           senderId: user.id,
         })
+        pushMessage(user_id, senderName, preview, conversationId).catch(() => {})
       })
     } catch (sideErr) {
       console.error('[messages POST] non-fatal side-effect error:', sideErr)

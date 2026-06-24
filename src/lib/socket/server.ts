@@ -4,6 +4,7 @@ import { Server as SocketServer } from 'socket.io'
 import { createClient as createRedisClient } from 'redis'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { adminClient } from '@/lib/supabase/server'
+import { pushCallInvite } from '@/lib/push/sender'
 
 declare global {
   // eslint-disable-next-line no-var
@@ -108,6 +109,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
       io.to(`user:${calleeId}`).emit('call:invite', {
         conversationId, callerId: userId, callerName, callerAvatar, type,
       })
+      pushCallInvite(calleeId, callerName, type, conversationId).catch(() => {})
     })
 
     // Caller cancelled before callee answered → notify callee via personal room

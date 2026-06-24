@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient, adminClient } from '@/lib/supabase/server'
 import { emitToUser, emitToPost } from '@/lib/socket/server'
+import { pushComment, pushReply, pushMention } from '@/lib/push/sender'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 
 const schema = z.object({
@@ -120,7 +121,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
         .single()
 
       // Include post_id so the client can navigate to the correct post
-      if (notification) emitToUser(notifyUserId, 'notification:new', { ...notification, post_id: postId })
+      if (notification) {
+        emitToUser(notifyUserId, 'notification:new', { ...notification, post_id: postId })
+        const actorName = notification.actor?.full_name || notification.actor?.username || 'Someone'
+        const pushFn = parentId ? pushReply : pushComment
+        pushFn(notifyUserId, actorName, content).catch(() => {})
+      }
     }
 
     // Send mention notifications
@@ -134,7 +140,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ postId:
           recipient_id: mu.id, actor_id: user.id,
           type: 'mention', reference_id: comment.id, reference_type: 'comment',
         }).select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`).single()
-        if (n) emitToUser(mu.id, 'notification:new', { ...n, post_id: postId })
+        if (n) {
+          emitToUser(mu.id, 'notification:new', { ...n, post_id: postId })
+          const actorName = n.actor?.full_name || n.actor?.username || 'Someone'
+          pushMention(mu.id, actorName, content).catch(() => {})
+        }
       }
     }
 

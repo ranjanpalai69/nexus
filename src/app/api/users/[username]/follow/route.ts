@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient, adminClient } from '@/lib/supabase/server'
 import { emitToUser } from '@/lib/socket/server'
+import { pushFollow } from '@/lib/push/sender'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ username: string }> }) {
   const { username } = await params
@@ -64,7 +65,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ userna
       .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url)`)
       .single()
 
-    if (notification) emitToUser(target.id, 'notification:new', notification)
+    if (notification) {
+      emitToUser(target.id, 'notification:new', notification)
+      const actorName = notification.actor?.full_name || notification.actor?.username || 'Someone'
+      pushFollow(target.id, actorName).catch(() => {})
+    }
 
     return NextResponse.json({ following: true })
   } catch (err) {

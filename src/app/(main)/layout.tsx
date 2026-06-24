@@ -23,8 +23,11 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
+import { usePushSubscription } from '@/hooks/usePushSubscription'
+
 function SocketInitializer() {
   useSocket()
+  usePushSubscription()
   return null
 }
 
