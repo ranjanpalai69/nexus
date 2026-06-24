@@ -122,10 +122,14 @@ export async function POST(req: Request) {
 
     if (error) throw error
 
-    await adminClient.from('conversation_participants').insert([
+    const { error: partInsertError } = await adminClient.from('conversation_participants').insert([
       { conversation_id: conv.id, user_id: user.id },
       { conversation_id: conv.id, user_id: participantId },
     ])
+    if (partInsertError) {
+      console.error('[conversations POST] participants insert error:', partInsertError)
+      throw partInsertError
+    }
 
     const { data: fullConv } = await adminClient
       .from('conversations')

@@ -99,8 +99,8 @@ export function MessageInput({ conversationId, replyTo, onClearReply }: MessageI
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        console.error('[MessageInput] send failed:', body)
-        toast.error('Message failed to send')
+        console.error('[MessageInput] send failed:', res.status, body)
+        toast.error(`Send failed (${res.status}: ${body.error ?? 'unknown'})`)
       }
     } catch (err) {
       console.error('[MessageInput] send error:', err)

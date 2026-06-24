@@ -11,13 +11,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: participant } = await adminClient
+    // Use adminClient to bypass RLS on conversation_participants
+    const { data: participant, error: partError } = await adminClient
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id)
       .maybeSingle()
 
+    if (partError) console.error('[messages GET] participant check error:', partError)
     if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
@@ -26,14 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
 
     let query = adminClient
       .from('messages')
-      .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, username, full_name, avatar_url),
-        reply_to:messages!messages_reply_to_id_fkey(
-          id, content, type, media_url, file_name,
-          sender:profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
-        )
-      `)
+      .select('*')
       .eq('conversation_id', conversationId)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
@@ -41,10 +36,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
 
     if (cursor) query = query.lt('created_at', cursor)
 
-    const { data: messages, error } = await query
-    if (error) throw error
+    const { data: rawMessages, error: msgError } = await query
+    if (msgError) throw msgError
 
-    // Mark this user's messages as read
+    // Enrich messages with sender profiles in a single join query
+    const messages = rawMessages ?? []
+    const senderIds = [...new Set(messages.map((m) => m.sender_id).filter(Boolean))]
+    const replyToIds = [...new Set(messages.map((m) => m.reply_to_id).filter(Boolean))]
+
+    const [{ data: profiles }, { data: replyMsgs }] = await Promise.all([
+      senderIds.length
+        ? adminClient.from('profiles').select('id, username, full_name, avatar_url, online_status').in('id', senderIds)
+        : Promise.resolve({ data: [] }),
+      replyToIds.length
+        ? adminClient.from('messages').select('id, content, type, media_url, file_name, sender_id').in('id', replyToIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
+    const replyMap = Object.fromEntries((replyMsgs ?? []).map((m) => [m.id, { ...m, sender: profileMap[m.sender_id] }]))
+
+    const enriched = messages.map((m) => ({
+      ...m,
+      sender: profileMap[m.sender_id] ?? null,
+      reply_to: m.reply_to_id ? (replyMap[m.reply_to_id] ?? null) : null,
+    })).reverse()
+
+    // Mark this user's position as read
     const readAt = new Date().toISOString()
     await adminClient
       .from('conversation_participants')
@@ -52,7 +70,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id)
 
-    // Get the OTHER participant's last_read_at so the sender can show "seen" ticks
+    // Get the OTHER participant's last_read_at for "seen" ticks
     const { data: recipientRow } = await adminClient
       .from('conversation_participants')
       .select('last_read_at')
@@ -60,7 +78,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
       .neq('user_id', user.id)
       .maybeSingle()
 
-    // Notify others in the conversation that this user has read up to now
+    // Notify the conversation room that this user has read up to now
     try {
       emitToConversation(conversationId, 'messages:read', {
         conversationId,
@@ -69,9 +87,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ conversa
       })
     } catch {}
 
-    const nextCursor = messages && messages.length === limit ? messages[messages.length - 1].created_at : null
+    const nextCursor = rawMessages && rawMessages.length === limit ? rawMessages[rawMessages.length - 1].created_at : null
     return NextResponse.json({
-      messages: messages?.reverse() ?? [],
+      messages: enriched,
       nextCursor,
       recipientLastReadAt: recipientRow?.last_read_at ?? null,
     })
@@ -88,18 +106,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: participant } = await adminClient
+    // Verify caller is a participant (adminClient bypasses RLS)
+    const { data: participant, error: partError } = await adminClient
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id)
       .maybeSingle()
-    if (!participant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    if (partError) console.error('[messages POST] participant check error:', partError)
+    if (!participant) {
+      console.error('[messages POST] user', user.id, 'not in conversation', conversationId)
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await req.json()
     const { content, type = 'text', mediaUrl, fileName, fileSize, durationSeconds, replyToId, tempId } = body
 
-    const { data: message, error } = await adminClient
+    // Step 1: Insert — only select minimal fields so no FK join can cause failure
+    const { data: inserted, error: insertError } = await adminClient
       .from('messages')
       .insert({
         conversation_id: conversationId,
@@ -112,29 +137,45 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
         duration_seconds: durationSeconds || null,
         reply_to_id: replyToId || null,
       })
-      .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, username, full_name, avatar_url, online_status),
-        reply_to:messages!messages_reply_to_id_fkey(
-          id, content, type, media_url, file_name,
-          sender:profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
-        )
-      `)
+      .select('id, created_at, conversation_id, sender_id, content, type, media_url, file_name, file_size, duration_seconds, reply_to_id, is_deleted, updated_at')
       .single()
 
-    if (error) {
-      console.error('[messages POST] insert error:', error)
-      throw error
+    if (insertError) {
+      console.error('[messages POST] insert error:', insertError)
+      throw insertError
     }
-    if (!message) throw new Error('Insert returned no data')
+    if (!inserted) throw new Error('Insert returned no data')
 
-    // Side effects: conversation update + socket notification.
-    // Wrapped in try/catch so they NEVER prevent the 201 response — the message
-    // is already in the DB at this point.
+    // Step 2: Enrich with sender + reply_to via separate queries (avoids FK alias issues)
+    const [{ data: senderProfile }, { data: replyMsg }] = await Promise.all([
+      adminClient.from('profiles').select('id, username, full_name, avatar_url, online_status').eq('id', user.id).single(),
+      replyToId
+        ? adminClient.from('messages').select('id, content, type, media_url, file_name, sender_id').eq('id', replyToId).single()
+        : Promise.resolve({ data: null }),
+    ])
+
+    let replyWithSender = null
+    if (replyMsg) {
+      const { data: replySender } = await adminClient
+        .from('profiles')
+        .select('id, username, full_name, avatar_url')
+        .eq('id', replyMsg.sender_id)
+        .single()
+      replyWithSender = { ...replyMsg, sender: replySender }
+    }
+
+    const message = {
+      ...inserted,
+      sender: senderProfile ?? null,
+      reply_to: replyWithSender,
+    }
+
+    // Step 3: Side effects — wrapped so they NEVER prevent the 201 response
     try {
       const preview = type === 'text' ? (content?.slice(0, 80) ?? '') : `[${type}]`
+
       await adminClient.from('conversations').update({
-        last_message_at: message.created_at,
+        last_message_at: inserted.created_at,
         last_message_preview: preview,
       }).eq('id', conversationId)
 
@@ -149,7 +190,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
       others?.forEach(({ user_id }) => {
         emitToUser(user_id, 'conversation:updated', {
           conversationId,
-          lastMessageAt: message.created_at,
+          lastMessageAt: inserted.created_at,
           lastMessagePreview: preview,
           senderId: user.id,
         })
@@ -160,7 +201,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ convers
 
     return NextResponse.json({ message }, { status: 201 })
   } catch (err) {
-    console.error('[messages POST]', err)
+    console.error('[messages POST] fatal error:', err)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })
   }
 }
