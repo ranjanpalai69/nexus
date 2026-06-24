@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { UserAvatar } from '@/components/shared/UserAvatar'
@@ -13,20 +14,24 @@ import type { ConversationWithDetails, Profile } from '@/types/database'
 export function ConversationList() {
   const pathname = usePathname()
   const currentUser = useAuthStore((s) => s.user)
-  const { conversations, setConversations } = useChatStore()
+  const conversations = useChatStore((s) => s.conversations)
+  const setConversations = useChatStore((s) => s.setConversations)
 
-  const { isLoading } = useQuery({
+  const { isLoading, data } = useQuery<ConversationWithDetails[]>({
     queryKey: ['conversations'],
     queryFn: async () => {
       const res = await fetch('/api/messages')
-      const data = await res.json()
-      const convs = data.conversations ?? []
-      setConversations(convs)
-      return convs
+      const result = await res.json()
+      return (result.conversations ?? []) as ConversationWithDetails[]
     },
     staleTime: 10 * 1000,
     refetchOnWindowFocus: true,
   })
+
+  // Sync React Query data to Zustand store (outside queryFn to avoid React update-during-render)
+  useEffect(() => {
+    if (data) setConversations(data)
+  }, [data, setConversations])
 
   if (isLoading) return <PageLoader />
 

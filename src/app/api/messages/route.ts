@@ -62,7 +62,19 @@ export async function GET() {
       unread_count: unreadCounts[c.id] ?? 0,
     }))
 
-    return NextResponse.json({ conversations: enriched })
+    // Deduplicate DM conversations: if the same two users have multiple DM conversations
+    // (created before duplicate-prevention was in place), show only the most recent one.
+    // Group conversations are never deduplicated.
+    const seen = new Set<string>()
+    const dedupedConvs = enriched.filter((conv) => {
+      if (conv.is_group) return true
+      const key = (conv.participants ?? []).map((p) => p.user_id).sort().join('|')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    return NextResponse.json({ conversations: dedupedConvs })
   } catch (err) {
     console.error('[conversations GET]', err)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })

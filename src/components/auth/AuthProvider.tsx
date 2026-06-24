@@ -33,7 +33,9 @@ async function ensureProfile(supabase: ReturnType<typeof createClient>, user: Us
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser, setLoading } = useAuthStore()
+  // Use selectors so AuthProvider doesn't re-render on every auth store change
+  const setUser = useAuthStore((s) => s.setUser)
+  const setLoading = useAuthStore((s) => s.setLoading)
   const supabase = createClient()
 
   useEffect(() => {

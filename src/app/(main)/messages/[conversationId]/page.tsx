@@ -19,7 +19,10 @@ import type { ConversationWithDetails, Profile } from '@/types/database'
 export default function ConversationPage({ params }: { params: Promise<{ conversationId: string }> }) {
   const { conversationId } = use(params)
   const currentUser = useAuthStore((s) => s.user)
-  const { setConversations, isUserOnline, setActiveConversation, clearConversationUnread } = useChatStore()
+  const setConversations = useChatStore((s) => s.setConversations)
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
+  const clearConversationUnread = useChatStore((s) => s.clearConversationUnread)
+  const isUserOnline = useChatStore((s) => s.isUserOnline)
   const router = useRouter()
 
   useEffect(() => {
@@ -28,20 +31,23 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     return () => setActiveConversation(null)
   }, [conversationId, setActiveConversation, clearConversationUnread])
 
-  // Share the same query key as ConversationList so React Query deduplicates the request.
-  // This avoids a second /api/messages call just to get participant info for the header.
+  // Shares query key with ConversationList — React Query deduplicates the fetch.
+  // queryFn is kept pure (no side effects) to avoid React update-during-render errors.
   const { data: conversationsData } = useQuery<ConversationWithDetails[]>({
     queryKey: ['conversations'],
     queryFn: async () => {
       const res = await fetch('/api/messages')
       const d = await res.json()
-      const convs: ConversationWithDetails[] = d.conversations ?? []
-      setConversations(convs)
-      return convs
+      return (d.conversations ?? []) as ConversationWithDetails[]
     },
     staleTime: 10 * 1000,
     refetchOnWindowFocus: true,
   })
+
+  // Sync to Zustand store for real-time socket updates to flow back
+  useEffect(() => {
+    if (conversationsData) setConversations(conversationsData)
+  }, [conversationsData, setConversations])
 
   const conversation = conversationsData?.find((c) => c.id === conversationId)
   const otherParticipant: Profile | undefined = conversation?.participants
