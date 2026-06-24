@@ -27,6 +27,8 @@ export interface PushPayload {
   data?: Record<string, unknown>
   actions?: Array<{ action: string; title: string }>
   requireInteraction?: boolean
+  ttl?: number
+  urgency?: 'very-low' | 'low' | 'normal' | 'high'
 }
 
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
@@ -40,17 +42,24 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
 
   if (!subs?.length) return
 
+  const { ttl = 86400, urgency = 'normal', ...rest } = payload
+  const body = JSON.stringify({
+    ...rest,
+    icon: rest.icon ?? '/logo.svg',
+    badge: '/logo.svg',
+  })
+
   await Promise.allSettled(
     subs.map(async ({ id, subscription }) => {
       try {
         await webpush.sendNotification(
           subscription as webpush.PushSubscription,
-          JSON.stringify({ ...payload, icon: payload.icon ?? '/logo.svg', badge: '/logo.svg' }),
+          body,
+          { TTL: ttl, urgency },
         )
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode
         if (code === 410 || code === 404) {
-          // Subscription expired — remove it
           await adminClient.from('push_subscriptions').delete().eq('id', id)
         }
       }
@@ -58,7 +67,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   )
 }
 
-// ── Typed helpers for each notification type ────────────────────────────────
+// ── Typed helpers ────────────────────────────────────────────────────────────
 
 export async function pushFollow(recipientId: string, actorName: string) {
   await sendPushToUser(recipientId, {
@@ -117,6 +126,8 @@ export async function pushMessage(
     tag: `msg-${conversationId}`,
     url: `/messages/${conversationId}`,
     data: { conversationId },
+    urgency: 'high',
+    ttl: 3600,
   })
 }
 
@@ -133,8 +144,8 @@ export async function pushCallInvite(
     url: `/messages/${conversationId}`,
     requireInteraction: true,
     data: { conversationId, type },
-    actions: [
-      { action: 'open', title: 'Open' },
-    ],
+    actions: [{ action: 'open', title: 'Open app' }],
+    urgency: 'high',
+    ttl: 45,
   })
 }

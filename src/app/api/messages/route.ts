@@ -14,7 +14,6 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Use adminClient to bypass the self-referential RLS on conversation_participants
     const { data: userParticipants } = await adminClient
       .from('conversation_participants')
       .select('conversation_id')
@@ -23,70 +22,88 @@ export async function GET() {
     const conversationIds = userParticipants?.map((p) => p.conversation_id) ?? []
     if (!conversationIds.length) return NextResponse.json({ conversations: [] })
 
-    const { data: conversations, error } = await adminClient
-      .from('conversations')
-      .select(`
-        *,
-        participants:conversation_participants(
+    // Fetch conversations + current user's read-times in parallel (2 queries instead of serial)
+    const [{ data: conversations, error }, { data: participantData }] = await Promise.all([
+      adminClient
+        .from('conversations')
+        .select(`
           *,
-          profile:profiles!conversation_participants_user_id_fkey(id, username, full_name, avatar_url, online_status, last_seen)
-        )
-      `)
-      .in('id', conversationIds)
-      .order('last_message_at', { ascending: false })
+          participants:conversation_participants(
+            *,
+            profile:profiles!conversation_participants_user_id_fkey(id, username, full_name, avatar_url, online_status, last_seen)
+          )
+        `)
+        .in('id', conversationIds)
+        .order('last_message_at', { ascending: false }),
+      adminClient
+        .from('conversation_participants')
+        .select('conversation_id, last_read_at')
+        .eq('user_id', user.id)
+        .in('conversation_id', conversationIds),
+    ])
 
     if (error) throw error
 
-    // Get unread counts in parallel
-    const { data: participantData } = await adminClient
-      .from('conversation_participants')
-      .select('conversation_id, last_read_at')
-      .eq('user_id', user.id)
-      .in('conversation_id', conversationIds)
+    // Build per-conversation last_read_at map + find global minimum for batch query
+    const lastReadMap: Record<string, string> = {}
+    let minLastRead = '9999-01-01T00:00:00Z'
+    ;(participantData ?? []).forEach((p) => {
+      const t = p.last_read_at ?? '1970-01-01T00:00:00Z'
+      lastReadMap[p.conversation_id] = t
+      if (t < minLastRead) minLastRead = t
+    })
+    if (minLastRead === '9999-01-01T00:00:00Z') minLastRead = '1970-01-01T00:00:00Z'
 
+    // Conversations missing last_message_sender_id (migration 005 not applied yet)
+    const convsMissingSender = (conversations ?? [])
+      .filter((c) => !(c as any).last_message_sender_id && c.last_message_at)
+      .map((c) => c.id)
+
+    // Single batch query for unread counts + optional last-sender fallback — run in parallel
+    const [{ data: unreadMsgs }, { data: lastMessages }] = await Promise.all([
+      // ONE query replaces N parallel per-conversation count queries
+      adminClient
+        .from('messages')
+        .select('conversation_id, created_at')
+        .in('conversation_id', conversationIds)
+        .neq('sender_id', user.id)
+        .gt('created_at', minLastRead),
+      // Zero queries if migration 005 ran; one query otherwise
+      convsMissingSender.length
+        ? adminClient
+            .from('messages')
+            .select('conversation_id, sender_id')
+            .in('conversation_id', convsMissingSender)
+            .order('created_at', { ascending: false })
+            .limit(convsMissingSender.length * 10)
+        : Promise.resolve({ data: [] as any[] }),
+    ])
+
+    // Count unreads per conversation using the per-conversation last_read_at
     const unreadCounts: Record<string, number> = {}
-    await Promise.all(
-      (participantData ?? []).map(async (p) => {
-        const { count } = await adminClient
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('conversation_id', p.conversation_id)
-          .gt('created_at', p.last_read_at ?? '1970-01-01T00:00:00Z')
-          .neq('sender_id', user.id)
-        unreadCounts[p.conversation_id] = count ?? 0
-      })
-    )
+    ;(unreadMsgs ?? []).forEach((msg) => {
+      const lastRead = lastReadMap[msg.conversation_id] ?? '1970-01-01T00:00:00Z'
+      if (msg.created_at > lastRead) {
+        unreadCounts[msg.conversation_id] = (unreadCounts[msg.conversation_id] ?? 0) + 1
+      }
+    })
 
-    // Batch-query last message sender per conversation for tick display
-    // (fallback in case last_message_sender_id column from migration 005 is null)
-    const lastMsgResults = await Promise.all(
-      conversationIds.map((cid) =>
-        adminClient
-          .from('messages')
-          .select('conversation_id, sender_id')
-          .eq('conversation_id', cid)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      )
-    )
+    // Build last-sender map (first entry per conversation = most recent)
     const lastSenderMap: Record<string, string | null> = {}
-    lastMsgResults.forEach(({ data }) => {
-      if (data) lastSenderMap[data.conversation_id] = data.sender_id
+    ;(lastMessages ?? []).forEach((msg) => {
+      if (!lastSenderMap[msg.conversation_id]) {
+        lastSenderMap[msg.conversation_id] = msg.sender_id
+      }
     })
 
     const enriched = (conversations ?? []).map((c) => ({
       ...c,
       unread_count: unreadCounts[c.id] ?? 0,
       last_message_sender_id:
-        (c as unknown as Record<string, unknown>).last_message_sender_id
-        ?? lastSenderMap[c.id]
-        ?? null,
+        (c as any).last_message_sender_id ?? lastSenderMap[c.id] ?? null,
     }))
 
-    // Deduplicate DM conversations: if the same two users have multiple DM conversations
-    // (created before duplicate-prevention was in place), show only the most recent one.
-    // Group conversations are never deduplicated.
+    // Deduplicate DM conversations (guard against pre-dedup data)
     const seen = new Set<string>()
     const dedupedConvs = enriched.filter((conv) => {
       if (conv.is_group) return true
@@ -112,15 +129,10 @@ export async function POST(req: Request) {
     const { participantId } = createSchema.parse(await req.json())
 
     // Find existing DM between these two users (adminClient bypasses RLS)
-    const { data: myConvs } = await adminClient
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id)
-
-    const { data: theirConvs } = await adminClient
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', participantId)
+    const [{ data: myConvs }, { data: theirConvs }] = await Promise.all([
+      adminClient.from('conversation_participants').select('conversation_id').eq('user_id', user.id),
+      adminClient.from('conversation_participants').select('conversation_id').eq('user_id', participantId),
+    ])
 
     const myIds = new Set(myConvs?.map((c) => c.conversation_id))
     const shared = theirConvs?.find((c) => myIds.has(c.conversation_id))

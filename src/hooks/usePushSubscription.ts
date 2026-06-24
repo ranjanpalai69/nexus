@@ -1,6 +1,6 @@
 // @ts-nocheck
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '@/store/authStore'
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
@@ -12,43 +12,56 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 
 export function usePushSubscription() {
   const userId = useAuthStore((s) => s.user?.id)
+  const registeredRef = useRef(false)
 
   useEffect(() => {
-    if (!userId) return
+    if (!userId) { registeredRef.current = false; return }
     if (typeof window === 'undefined') return
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
+    if (registeredRef.current) return
 
     const register = async () => {
       try {
-        // Register (or get existing) service worker
+        // Register service worker (or get existing registration)
         const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+
+        // Tell a waiting SW (new version) to activate immediately
+        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+
+        // Wait until active
         await navigator.serviceWorker.ready
 
-        // Check current permission
         if (Notification.permission === 'denied') return
 
-        // Request permission if not granted
         if (Notification.permission !== 'granted') {
           const perm = await Notification.requestPermission()
           if (perm !== 'granted') return
         }
 
-        // Get or create push subscription
         let sub = await reg.pushManager.getSubscription()
+
+        // Re-subscribe if expired or near expiry (within 7 days)
+        if (sub && sub.expirationTime && sub.expirationTime - Date.now() < 7 * 24 * 60 * 60 * 1000) {
+          await sub.unsubscribe()
+          sub = null
+        }
+
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+            applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
           })
         }
 
-        // Save to server
-        await fetch('/api/push/subscribe', {
+        // Persist subscription on server
+        const res = await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sub.toJSON()),
         })
+
+        if (res.ok) registeredRef.current = true
       } catch (err) {
         console.error('[push] subscription failed:', err)
       }

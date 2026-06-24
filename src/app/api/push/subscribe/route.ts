@@ -12,13 +12,13 @@ export async function POST(req: Request) {
     const subscription = await req.json()
     if (!subscription?.endpoint) return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 })
 
-    // Upsert by endpoint — replace existing for this endpoint
+    // Upsert: update if endpoint already exists for this user, insert otherwise
     const { data: existing } = await adminClient
       .from('push_subscriptions')
       .select('id')
       .eq('user_id', user.id)
       .eq('subscription->>endpoint', subscription.endpoint)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       await adminClient.from('push_subscriptions').update({ subscription }).eq('id', existing.id)
@@ -39,12 +39,13 @@ export async function DELETE(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { endpoint } = await req.json()
-    if (endpoint) {
-      await adminClient.from('push_subscriptions')
+    const body = await req.json().catch(() => ({}))
+    if (body?.endpoint) {
+      await adminClient
+        .from('push_subscriptions')
         .delete()
         .eq('user_id', user.id)
-        .eq('subscription->>endpoint', endpoint)
+        .eq('subscription->>endpoint', body.endpoint)
     } else {
       await adminClient.from('push_subscriptions').delete().eq('user_id', user.id)
     }

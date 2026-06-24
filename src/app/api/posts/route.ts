@@ -63,22 +63,13 @@ export async function GET(req: Request) {
 
     if (error) throw error
 
-    // Fetch liked status for current user
+    // Fetch liked + saved status in parallel
     const postIds = posts?.map((p) => p.id) ?? []
-    const { data: likes } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', user.id)
-      .in('post_id', postIds)
-
+    const [{ data: likes }, { data: saves }] = await Promise.all([
+      supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', postIds),
+      supabase.from('post_saves').select('post_id').eq('user_id', user.id).in('post_id', postIds),
+    ])
     const likedSet = new Set(likes?.map((l) => l.post_id))
-
-    // Fetch saved status
-    const { data: saves } = await supabase
-      .from('post_saves')
-      .select('post_id')
-      .eq('user_id', user.id)
-      .in('post_id', postIds)
     const savedSet = new Set((saves ?? []).map((s) => s.post_id))
 
     const enriched = posts?.map((p) => ({

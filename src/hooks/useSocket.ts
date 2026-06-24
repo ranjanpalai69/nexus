@@ -11,10 +11,19 @@ import type { MessageWithSender, NotificationWithActor } from '@/types/database'
 import { useCallStore } from '@/store/callStore'
 import type { IncomingCall } from '@/store/callStore'
 
+let _audioCtx: AudioContext | null = null
+
+function getAudioCtx(): AudioContext {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    _audioCtx = new AudioCtx()
+  }
+  return _audioCtx
+}
+
 function playNotificationSound() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    const ctx = new AudioCtx()
+    const ctx = getAudioCtx()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
@@ -26,7 +35,6 @@ function playNotificationSound() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + 0.4)
-    setTimeout(() => ctx.close(), 600)
   } catch {}
 }
 
@@ -126,7 +134,6 @@ export function useSocket() {
     // ── Notifications ─────────────────────────────────────────────
     const handleNotification = (notification: NotificationWithActor) => {
       useNotificationStore.getState().addNotification(notification)
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
       playNotificationSound()
     }
 

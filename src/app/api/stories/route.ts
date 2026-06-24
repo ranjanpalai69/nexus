@@ -36,28 +36,16 @@ export async function GET() {
 
     const storyIds = (stories ?? []).map((s) => s.id)
 
-    // Get which stories current user has viewed
+    // Fetch viewed + liked status in parallel
     let viewedSet = new Set<string>()
-    if (storyIds.length) {
-      const { data: views } = await adminClient
-        .from('story_views')
-        .select('story_id')
-        .eq('viewer_id', user.id)
-        .in('story_id', storyIds)
-      if (views) viewedSet = new Set(views.map((v) => v.story_id))
-    }
-
-    // Get which stories current user has liked (story_likes table may not exist yet)
     let likedSet = new Set<string>()
     if (storyIds.length) {
-      const { data: likes, error: likesError } = await supabase
-        .from('story_likes')
-        .select('story_id')
-        .eq('user_id', user.id)
-        .in('story_id', storyIds)
-      if (!likesError && likes) {
-        likedSet = new Set(likes.map((l) => l.story_id))
-      }
+      const [{ data: views }, { data: likes, error: likesError }] = await Promise.all([
+        adminClient.from('story_views').select('story_id').eq('viewer_id', user.id).in('story_id', storyIds),
+        supabase.from('story_likes').select('story_id').eq('user_id', user.id).in('story_id', storyIds),
+      ])
+      if (views) viewedSet = new Set(views.map((v) => v.story_id))
+      if (!likesError && likes) likedSet = new Set(likes.map((l) => l.story_id))
     }
 
     // Group by user
