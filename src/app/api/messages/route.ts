@@ -57,9 +57,31 @@ export async function GET() {
       })
     )
 
+    // Batch-query last message sender per conversation for tick display
+    // (fallback in case last_message_sender_id column from migration 005 is null)
+    const lastMsgResults = await Promise.all(
+      conversationIds.map((cid) =>
+        adminClient
+          .from('messages')
+          .select('conversation_id, sender_id')
+          .eq('conversation_id', cid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    )
+    const lastSenderMap: Record<string, string | null> = {}
+    lastMsgResults.forEach(({ data }) => {
+      if (data) lastSenderMap[data.conversation_id] = data.sender_id
+    })
+
     const enriched = (conversations ?? []).map((c) => ({
       ...c,
       unread_count: unreadCounts[c.id] ?? 0,
+      last_message_sender_id:
+        (c as unknown as Record<string, unknown>).last_message_sender_id
+        ?? lastSenderMap[c.id]
+        ?? null,
     }))
 
     // Deduplicate DM conversations: if the same two users have multiple DM conversations

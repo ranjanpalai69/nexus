@@ -285,6 +285,22 @@ export function MessageThread({ conversationId, otherUserId }: MessageThreadProp
 
     const tickState = isMine ? getTickState(msg) : null
 
+    // System messages (call history) render as a centered pill
+    if (msg.type === 'system') {
+      return (
+        <motion.div
+          key={msg.id}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-center my-2"
+        >
+          <span className="text-[11px] text-muted-foreground bg-muted rounded-full px-3 py-1 flex items-center gap-1.5">
+            {msg.content}
+          </span>
+        </motion.div>
+      )
+    }
+
     return (
       <motion.div
         key={msg.id}
@@ -404,7 +420,7 @@ export function MessageThread({ conversationId, otherUserId }: MessageThreadProp
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col flex-1 min-h-0">
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}

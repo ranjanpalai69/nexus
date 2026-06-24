@@ -12,7 +12,7 @@ export default function MessagesPage() {
 
   return (
     <>
-      <div className="flex h-[calc(100dvh-5rem)] md:h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="flex h-[calc(100dvh-10rem)] md:h-[calc(100vh-6rem)] rounded-2xl border border-border bg-card overflow-hidden">
         {/* Conversation list — full width on mobile, sidebar on large screens */}
         <div className="flex flex-col w-full lg:w-72 xl:w-80 border-r border-border shrink-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">

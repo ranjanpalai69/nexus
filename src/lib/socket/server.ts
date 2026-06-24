@@ -102,6 +102,70 @@ export async function initSocketServer(httpServer: HTTPServer) {
       })
     })
 
+    // ── WebRTC Call Signaling ───────────────────────────────────
+    // call:invite goes to the callee's personal room (they may not be in the conv room yet)
+    socket.on('call:invite', ({ conversationId, calleeId, type, callerName, callerAvatar }) => {
+      io.to(`user:${calleeId}`).emit('call:invite', {
+        conversationId, callerId: userId, callerName, callerAvatar, type,
+      })
+    })
+
+    // Caller cancelled before callee answered → notify callee via personal room
+    socket.on('call:cancel', ({ conversationId, calleeId }) => {
+      io.to(`user:${calleeId}`).emit('call:cancel', { conversationId })
+    })
+
+    socket.on('call:accept', ({ conversationId }) => {
+      socket.join(`conversation:${conversationId}`)
+      socket.to(`conversation:${conversationId}`).emit('call:accept', { conversationId })
+    })
+
+    socket.on('call:reject', ({ conversationId }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:reject', { conversationId })
+    })
+
+    socket.on('call:busy', ({ conversationId }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:busy', { conversationId })
+    })
+
+    socket.on('call:offer', ({ conversationId, sdp }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:offer', { conversationId, sdp })
+    })
+
+    socket.on('call:answer', ({ conversationId, sdp }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:answer', { conversationId, sdp })
+    })
+
+    socket.on('call:ice-candidate', ({ conversationId, candidate }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:ice-candidate', { conversationId, candidate })
+    })
+
+    socket.on('call:end', async ({ conversationId, duration, type }) => {
+      socket.to(`conversation:${conversationId}`).emit('call:end', { conversationId, duration, type })
+      // Save call history as a system message
+      if (duration != null && conversationId) {
+        try {
+          const mins = Math.floor(duration / 60)
+          const secs = duration % 60
+          const durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+          const icon = type === 'video' ? '📹' : '📞'
+          const label = type === 'video' ? 'Video call' : 'Audio call'
+          const content = `${icon} ${label} · ${durationStr}`
+          const { data: msg } = await adminClient.from('messages').insert({
+            conversation_id: conversationId,
+            sender_id: userId,
+            content,
+            type: 'system',
+          }).select('id, conversation_id, sender_id, content, type, created_at, updated_at, media_url, file_name, file_size, duration_seconds, is_deleted, reply_to_id').single()
+          if (msg) {
+            io.to(`conversation:${conversationId}`).emit('message:new', { ...msg, sender: null })
+          }
+        } catch (err) {
+          console.error('[call:end] system message insert failed:', err)
+        }
+      }
+    })
+
     // ── Disconnect ──────────────────────────────────────────────
     socket.on('disconnect', () => {
       const sockets = onlineUsers.get(userId)

@@ -13,6 +13,9 @@ import { useNotificationStore } from '@/store/notificationStore'
 import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
+import { IncomingCallModal } from '@/components/call/IncomingCallModal'
+import { CallOverlay } from '@/components/call/CallOverlay'
+import { useCallStore } from '@/store/callStore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGear, faRightFromBracket, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/button'
@@ -73,6 +76,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const createPostOpen = useUIStore((s) => s.createPostOpen)
   const setCreatePostOpen = useUIStore((s) => s.setCreatePostOpen)
   const pathname = usePathname()
+  const incomingCall = useCallStore((s) => s.incomingCall)
+  const activeCall = useCallStore((s) => s.activeCall)
 
   // On individual conversation pages, the chat takes the full viewport on mobile
   // (no app header, no bottom nav) — just like WhatsApp/Instagram DMs.
@@ -143,6 +148,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </Dialog>
 
       <MediaViewer />
+
+      {/* Global call UI */}
+      {incomingCall && <IncomingCallModal />}
+      {activeCall && <CallOverlay />}
     </div>
   )
 }

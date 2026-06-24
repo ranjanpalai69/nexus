@@ -7,8 +7,10 @@ import { UserAvatar } from '@/components/shared/UserAvatar'
 import { MessageThread } from '@/components/chat/MessageThread'
 import { Button } from '@/components/ui/button'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft, faCircle, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faCircle, faPenToSquare, faPhone, faVideo } from '@fortawesome/free-solid-svg-icons'
 import { useChatStore } from '@/store/chatStore'
+import { useCallStore } from '@/store/callStore'
+import { getSocket } from '@/lib/socket/client'
 import { ConversationList } from '@/components/chat/ConversationList'
 import { NewMessageModal } from '@/components/chat/NewMessageModal'
 import { AnimatePresence } from 'framer-motion'
@@ -68,11 +70,35 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
     : false
 
   const [showNewMessage, setShowNewMessage] = useState(false)
+  const setActiveCall = useCallStore((s) => s.setActiveCall)
+  const activeCall = useCallStore((s) => s.activeCall)
+
+  const startCall = (type: 'audio' | 'video') => {
+    if (!otherParticipant || !currentUser || activeCall) return
+    const socket = getSocket(currentUser.id)
+    socket.emit('call:invite', {
+      conversationId,
+      calleeId: otherParticipant.id,
+      type,
+      callerName: currentUser.full_name || currentUser.username,
+      callerAvatar: currentUser.avatar_url,
+    })
+    setActiveCall({
+      conversationId,
+      type,
+      direction: 'outbound',
+      status: 'ringing',
+      startedAt: null,
+      otherUserId: otherParticipant.id,
+      otherUserName: otherParticipant.full_name || otherParticipant.username,
+      otherUserAvatar: otherParticipant.avatar_url ?? null,
+    })
+  }
 
   return (
     <>
       {/* Full-viewport on mobile, constrained card on md+ */}
-      <div className="flex h-dvh md:h-[calc(100vh-6rem)] md:rounded-2xl md:border md:border-border bg-card overflow-hidden">
+      <div className="flex h-full md:h-[calc(100vh-6rem)] md:rounded-2xl md:border md:border-border bg-card overflow-hidden">
         {/* Sidebar — large screens only */}
         <div className="hidden lg:flex flex-col w-72 border-r border-border shrink-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -120,6 +146,27 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
                     </p>
                   )}
                 </div>
+                {/* Call buttons */}
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Audio call"
+                    disabled={!!activeCall}
+                    onClick={() => startCall('audio')}
+                  >
+                    <FontAwesomeIcon icon={faPhone} className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Video call"
+                    disabled={!!activeCall}
+                    onClick={() => startCall('video')}
+                  >
+                    <FontAwesomeIcon icon={faVideo} className="h-4 w-4" />
+                  </Button>
+                </div>
               </>
             ) : (
               <div className="flex-1" />
@@ -127,7 +174,7 @@ export default function ConversationPage({ params }: { params: Promise<{ convers
           </div>
 
           {/* Messages */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <MessageThread conversationId={conversationId} otherUserId={otherParticipant?.id} />
           </div>
         </div>

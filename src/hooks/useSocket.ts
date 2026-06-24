@@ -8,6 +8,8 @@ import { useNotificationStore } from '@/store/notificationStore'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { MessageWithSender, NotificationWithActor } from '@/types/database'
+import { useCallStore } from '@/store/callStore'
+import type { IncomingCall } from '@/store/callStore'
 
 function playNotificationSound() {
   try {
@@ -173,6 +175,27 @@ export function useSocket() {
       }
     }
 
+    // ── Incoming call ─────────────────────────────────────────────
+    const handleCallInvite = (data: IncomingCall) => {
+      const { activeCall } = useCallStore.getState()
+      if (activeCall) {
+        // Already in a call — send busy
+        socket.emit('call:busy', { conversationId: data.conversationId })
+        return
+      }
+      useCallStore.getState().setIncomingCall(data)
+    }
+
+    const handleCallEnd = () => {
+      // If call ends while we haven't answered yet (missed call), clear incoming call modal
+      useCallStore.getState().setIncomingCall(null)
+    }
+
+    const handleCallCancel = () => {
+      // Caller cancelled before we answered
+      useCallStore.getState().setIncomingCall(null)
+    }
+
     socket.on('user:online', handleOnline)
     socket.on('user:offline', handleOffline)
     socket.on('message:new', handleMessage)
@@ -183,6 +206,9 @@ export function useSocket() {
     socket.on('user:follow_update', handleFollowUpdate)
     socket.on('conversation:updated', handleConversationUpdated)
     socket.on('story:new', handleStoryNew)
+    socket.on('call:invite', handleCallInvite)
+    socket.on('call:end', handleCallEnd)
+    socket.on('call:cancel', handleCallCancel)
 
     return () => {
       socket.off('user:online', handleOnline)
@@ -195,6 +221,9 @@ export function useSocket() {
       socket.off('user:follow_update', handleFollowUpdate)
       socket.off('conversation:updated', handleConversationUpdated)
       socket.off('story:new', handleStoryNew)
+      socket.off('call:invite', handleCallInvite)
+      socket.off('call:end', handleCallEnd)
+      socket.off('call:cancel', handleCallCancel)
     }
   }, [userId, queryClient])
 
