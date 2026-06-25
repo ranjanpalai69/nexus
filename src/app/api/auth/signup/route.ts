@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       username,
       full_name: fullName,
       avatar_url: null,
-    }, { onConflict: 'id', ignoreDuplicates: true })
+    }, { onConflict: 'id' })
 
     if (profileError) {
       console.warn('[signup] profile upsert warning:', profileError.message)
