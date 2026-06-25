@@ -1,11 +1,17 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-function getResend() {
-  return new Resend(process.env.RESEND_API_KEY)
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  })
 }
 
 function getFrom() {
-  return process.env.EMAIL_FROM || 'Nexus <onboarding@resend.dev>'
+  return `Nexus <${process.env.GMAIL_USER}>`
 }
 
 function baseTemplate(content: string) {
@@ -46,18 +52,28 @@ export async function sendVerificationEmail(email: string, code: string, name?: 
     </div>
     <p style="color:#64748b;font-size:13px">If you didn't sign up for Nexus, you can safely ignore this email.</p>
   `
-  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Verify your Nexus account', html: baseTemplate(content) })
+  await getTransporter().sendMail({
+    from: getFrom(),
+    to: email,
+    subject: 'Verify your Nexus account',
+    html: baseTemplate(content),
+  })
 }
 
 export async function sendPasswordResetEmail(email: string, code: string) {
   const content = `
-    <p>You requested a password reset. Use the code below — it's valid for <strong>15 minutes</strong>.</p>
+    <p>You requested a password reset. Use the code below — it&apos;s valid for <strong>15 minutes</strong>.</p>
     <div class="code-box">
       <div class="code">${code}</div>
     </div>
     <p style="color:#64748b;font-size:13px">Didn't request this? Your account is safe — just ignore this email.</p>
   `
-  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Reset your Nexus password', html: baseTemplate(content) })
+  await getTransporter().sendMail({
+    from: getFrom(),
+    to: email,
+    subject: 'Reset your Nexus password',
+    html: baseTemplate(content),
+  })
 }
 
 export async function sendWelcomeEmail(email: string, name: string) {
@@ -68,5 +84,10 @@ export async function sendWelcomeEmail(email: string, name: string) {
       <a href="${process.env.NEXT_PUBLIC_APP_URL}/feed" class="btn">Open Nexus →</a>
     </div>
   `
-  await getResend().emails.send({ from: getFrom(), to: email, subject: 'Welcome to Nexus! 🚀', html: baseTemplate(content) })
+  await getTransporter().sendMail({
+    from: getFrom(),
+    to: email,
+    subject: 'Welcome to Nexus! 🚀',
+    html: baseTemplate(content),
+  })
 }
