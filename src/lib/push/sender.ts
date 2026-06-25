@@ -141,15 +141,11 @@ export async function pushCallInvite(
 ) {
   await sendPushToUser(calleeId, {
     title: type === 'video' ? '📹 Incoming video call' : '📞 Incoming audio call',
-    body: `${callerName} is calling you`,
+    body: `${callerName} is calling — tap to answer`,
     tag: 'call',
     url: `/messages/${conversationId}`,
     requireInteraction: true,
     data: { conversationId, callerId, callerName, callerAvatar, callType: type },
-    actions: [
-      { action: 'accept', title: '✅ Accept' },
-      { action: 'reject', title: '❌ Reject' },
-    ],
     urgency: 'high',
     ttl: 45,
   })

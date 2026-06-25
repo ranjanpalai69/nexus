@@ -2,7 +2,7 @@
 
 A full-stack social media platform with real-time messaging, audio/video calling, stories, push notifications, and PWA support.
 
-**Live:** https://nexus-latest.onrender.com
+**Live:** https://nexus-ezh1.onrender.com
 
 ---
 

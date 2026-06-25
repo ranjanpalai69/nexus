@@ -3,62 +3,22 @@ import { useEffect } from 'react'
 import { useSearchParams, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { useCallStore } from '@/store/callStore'
-import { getSocket } from '@/lib/socket/client'
 
-function autoAccept(
-  userId: string,
-  conversationId: string,
-  callerId: string,
-  callerName: string,
-  callerAvatar: string | null,
-  callType: 'audio' | 'video',
-) {
-  const { incomingCall, setActiveCall, setIncomingCall } = useCallStore.getState()
-  const socket = getSocket(userId)
-
-  const callData = (incomingCall?.conversationId === conversationId)
-    ? { type: incomingCall.type, otherUserId: incomingCall.callerId, otherUserName: incomingCall.callerName, otherUserAvatar: incomingCall.callerAvatar, actualCallerId: incomingCall.callerId }
-    : { type: callType, otherUserId: callerId, otherUserName: callerName || 'Caller', otherUserAvatar: callerAvatar, actualCallerId: callerId }
-
-  socket.emit('call:accept', { conversationId, callerId: callData.actualCallerId })
-  socket.emit('conversation:join', conversationId)
-  setActiveCall({
-    conversationId,
-    type: callData.type,
-    direction: 'inbound',
-    status: 'connecting',
-    startedAt: null,
-    otherUserId: callData.otherUserId,
-    otherUserName: callData.otherUserName,
-    otherUserAvatar: callData.otherUserAvatar,
-  })
-  setIncomingCall(null)
-}
-
+// Handles the case where the user tapped a call push notification while the app
+// was completely closed. The SW opens the app with ?showCall=1 + caller info in
+// the URL. We read those params and set incomingCall in the store so the
+// IncomingCallModal appears immediately — then the user taps Accept/Reject as normal.
+//
+// When the app is already open (socket connected), the socket call:invite event
+// already set incomingCall in the store, so this component does nothing.
 export function CallNotificationHandler() {
   const userId = useAuthStore((s) => s.user?.id)
   const searchParams = useSearchParams()
   const pathname = usePathname()
 
-  // Handle SW postMessage (app was backgrounded)
-  useEffect(() => {
-    if (!userId || !('serviceWorker' in navigator)) return
-
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type !== 'CALL_ACCEPT_ACTION') return
-      const { conversationId, callerId, callerName, callerAvatar, callType } = event.data
-      if (!conversationId) return
-      autoAccept(userId, conversationId, callerId, callerName, callerAvatar, callType || 'audio')
-    }
-
-    navigator.serviceWorker.addEventListener('message', handler)
-    return () => navigator.serviceWorker.removeEventListener('message', handler)
-  }, [userId])
-
-  // Handle URL params (app was fully closed, SW opened it via openWindow)
   useEffect(() => {
     if (!userId) return
-    if (searchParams.get('acceptCall') !== '1') return
+    if (searchParams.get('showCall') !== '1') return
 
     const callerId = searchParams.get('callerId') || ''
     const callerName = searchParams.get('callerName') || 'Caller'
@@ -68,23 +28,21 @@ export function CallNotificationHandler() {
     // Extract conversationId from /messages/[conversationId]
     const match = pathname.match(/\/messages\/([^/?]+)/)
     const conversationId = match?.[1]
-    if (!conversationId) return
+    if (!conversationId || !callerId) return
 
-    // Give the socket time to connect before accepting
-    const timer = setTimeout(() => {
-      autoAccept(
-        userId,
+    // Only set incomingCall if it's not already set (socket may have beaten us)
+    if (!useCallStore.getState().incomingCall && !useCallStore.getState().activeCall) {
+      useCallStore.getState().setIncomingCall({
         conversationId,
         callerId,
-        decodeURIComponent(callerName),
-        callerAvatar ? decodeURIComponent(callerAvatar) : null,
-        callType,
-      )
-      // Clean up URL params
-      window.history.replaceState({}, '', pathname)
-    }, 1500)
+        callerName: decodeURIComponent(callerName),
+        callerAvatar: callerAvatar ? decodeURIComponent(callerAvatar) : null,
+        type: callType,
+      })
+    }
 
-    return () => clearTimeout(timer)
+    // Clean URL params so refreshing doesn't re-trigger
+    window.history.replaceState({}, '', pathname)
   }, [userId, searchParams, pathname])
 
   return null
