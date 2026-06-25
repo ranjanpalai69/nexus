@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHouse, faBell, faMessage, faUser, faPlus, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
+import { faHouse, faBell, faMessage, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
 import { cn } from '@/lib/utils/cn'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useChatStore } from '@/store/chatStore'
@@ -42,9 +42,9 @@ export function MobileNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-6 items-center border-t border-border bg-card/95 backdrop-blur-md px-1 py-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 items-center border-t border-border bg-card/95 backdrop-blur-md px-1 py-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] md:hidden">
       {navLink('/feed', faHouse)}
-      {navLink('/search', faMagnifyingGlass)}
+      {navLink('/notifications', faBell, unreadCount, 'bg-red-500')}
 
       {/* Center create post button */}
       <div className="flex justify-center">
@@ -56,7 +56,6 @@ export function MobileNav() {
         </button>
       </div>
 
-      {navLink('/notifications', faBell, unreadCount, 'bg-red-500')}
       {navLink('/messages', faMessage, unreadMessages, 'bg-indigo-500')}
 
       <Link
