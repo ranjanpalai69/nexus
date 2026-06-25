@@ -36,14 +36,14 @@ self.addEventListener('push', (e) => {
 
   const isCall = tag === 'call'
 
-  // For call notifications, always show Accept/Reject action buttons
+  // For call notifications always show Accept / Reject action buttons
   const actions = isCall
     ? [{ action: 'accept', title: '✅ Accept' }, { action: 'reject', title: '❌ Reject' }]
     : (payload.actions || [])
 
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Skip non-call notifications if app tab is already focused on the target page
+      // Skip non-call notifications if the app is already focused on the target page
       if (!isCall) {
         const targetPath = new URL(url, self.location.origin).pathname
         const isFocused = windowClients.some(
@@ -75,7 +75,7 @@ self.addEventListener('notificationclick', (e) => {
   const action = e.action
   const { conversationId, callerId, callerName, callerAvatar, callType, url = '/' } = notifData
 
-  // ── Reject action: signal the caller without opening the app ──────────────
+  // ── Reject: signal the caller without opening the app ─────────────────────
   if (action === 'reject') {
     e.waitUntil(
       fetch('/api/calls/reject', {
@@ -87,17 +87,8 @@ self.addEventListener('notificationclick', (e) => {
     return
   }
 
-  // ── Accept action or default tap ──────────────────────────────────────────
-  const baseUrl = url || (conversationId ? `/messages/${conversationId}` : '/')
-  const fullUrl = new URL(baseUrl, self.location.origin)
-
-  if (action === 'accept' && conversationId) {
-    fullUrl.searchParams.set('acceptCall', '1')
-    if (callerId) fullUrl.searchParams.set('callerId', callerId)
-    if (callerName) fullUrl.searchParams.set('callerName', encodeURIComponent(callerName))
-    if (callerAvatar) fullUrl.searchParams.set('callerAvatar', encodeURIComponent(callerAvatar))
-    if (callType) fullUrl.searchParams.set('callType', callType)
-  }
+  // ── Accept or default tap ──────────────────────────────────────────────────
+  const baseUrl = new URL(url || (conversationId ? `/messages/${conversationId}` : '/'), self.location.origin)
 
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
@@ -106,7 +97,10 @@ self.addEventListener('notificationclick', (e) => {
       )
 
       if (existing) {
-        // Post a message for instant auto-accept when app is in background
+        // App is already open — send a message for instant auto-accept.
+        // Navigate to the conversation WITHOUT acceptCall params; the SW message
+        // handler in CallNotificationHandler takes care of accepting, so we must NOT
+        // also set the URL param (that would trigger a second conflicting accept).
         if (action === 'accept' && conversationId) {
           existing.postMessage({
             type: 'CALL_ACCEPT_ACTION',
@@ -117,11 +111,19 @@ self.addEventListener('notificationclick', (e) => {
             callType,
           })
         }
-        return existing.focus().then((c) => c.navigate(fullUrl.href))
+        return existing.focus().then((c) => c.navigate(baseUrl.href))
       }
 
-      // No existing tab — open the app (auto-accept handled via URL params)
-      return self.clients.openWindow(fullUrl.href)
+      // App is closed — open it. For accept, embed params so CallNotificationHandler
+      // can auto-accept once the socket connects (~1.5 s delay).
+      if (action === 'accept' && conversationId) {
+        baseUrl.searchParams.set('acceptCall', '1')
+        if (callerId) baseUrl.searchParams.set('callerId', callerId)
+        if (callerName) baseUrl.searchParams.set('callerName', encodeURIComponent(callerName))
+        if (callerAvatar) baseUrl.searchParams.set('callerAvatar', encodeURIComponent(callerAvatar))
+        if (callType) baseUrl.searchParams.set('callType', callType)
+      }
+      return self.clients.openWindow(baseUrl.href)
     })
   )
 })

@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faImage, faVideo, faXmark, faSpinner, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
+import { faImage, faVideo, faSpinner, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-regular-svg-icons'
 import { useAuthStore } from '@/store/authStore'
 import { UserAvatar } from '@/components/shared/UserAvatar'
@@ -15,6 +15,7 @@ import EmojiPickerComponent, { type EmojiClickData } from 'emoji-picker-react'
 import { cn } from '@/lib/utils/cn'
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MAX_FILE_SIZE } from '@/lib/utils/helpers'
 import { MentionTextarea } from '@/components/shared/MentionTextarea'
+import { MediaCarousel } from '@/components/shared/MediaCarousel'
 
 interface UploadedMedia {
   url: string
@@ -134,24 +135,11 @@ export function CreatePost({ onSuccess }: { onSuccess?: () => void }) {
 
           {/* Media Preview */}
           {media.length > 0 && (
-            <div className={cn('grid gap-2', media.length === 1 ? 'grid-cols-1' : media.length <= 4 ? 'grid-cols-2' : 'grid-cols-3')}>
-              {media.map((m, i) => (
-                <div key={i} className="relative group rounded-xl overflow-hidden aspect-square bg-muted">
-                  {m.type === 'image' ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.previewUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <video src={m.previewUrl} className="w-full h-full object-cover" />
-                  )}
-                  <button
-                    onClick={() => setMedia((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <FontAwesomeIcon icon={faXmark} className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
+            <MediaCarousel
+              items={media.map((m) => ({ url: m.previewUrl, type: m.type }))}
+              onRemove={(i) => setMedia((prev) => prev.filter((_, idx) => idx !== i))}
+              aspectRatio="video"
+            />
           )}
 
           {/* Actions */}

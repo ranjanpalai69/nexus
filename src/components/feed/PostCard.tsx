@@ -17,6 +17,7 @@ import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getSocket } from '@/lib/socket/client'
 import { RenderWithMentions } from '@/components/shared/MentionTextarea'
+import { MediaCarousel } from '@/components/shared/MediaCarousel'
 import type { PostWithDetails } from '@/types/database'
 
 interface PostCardProps {
@@ -149,34 +150,11 @@ export function PostCard({ post, onDelete, defaultOpenComments = false }: PostCa
 
       {/* Media */}
       {sortedMedia.length > 0 && (
-        <div className={cn('grid gap-1.5 rounded-xl overflow-hidden', {
-          'grid-cols-1': sortedMedia.length === 1,
-          'grid-cols-2': sortedMedia.length === 2 || sortedMedia.length === 4,
-          'grid-cols-3': sortedMedia.length === 3 || sortedMedia.length > 4,
-        })}>
-          {sortedMedia.slice(0, 4).map((m, i) => (
-            <div
-              key={m.id}
-              className={cn('relative cursor-pointer overflow-hidden bg-muted', {
-                'aspect-video': sortedMedia.length === 1,
-                'aspect-square': sortedMedia.length > 1,
-              })}
-              onClick={() => openMediaViewer(m.url)}
-            >
-              {m.type === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.url} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
-              ) : (
-                <video src={m.url} className="w-full h-full object-cover" />
-              )}
-              {i === 3 && sortedMedia.length > 4 && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="text-white text-xl font-bold">+{sortedMedia.length - 4}</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        <MediaCarousel
+          items={sortedMedia.map((m) => ({ id: m.id, url: m.url, type: m.type as 'image' | 'video' }))}
+          onImageClick={openMediaViewer}
+          aspectRatio="video"
+        />
       )}
 
       {/* Actions */}
