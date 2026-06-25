@@ -1,32 +1,79 @@
 'use client'
-import { Suspense, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useRef, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Mail, RefreshCw, ArrowLeft } from 'lucide-react'
+import { Mail, ArrowLeft, RefreshCw, Loader2, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils/cn'
+import { OtpInput } from '@/components/ui/otp-input'
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const email = searchParams.get('email') ?? ''
+  const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [done, setDone] = useState(false)
+  const [otpComplete, setOtpComplete] = useState(false)
+  const otpRef = useRef('')
   const supabase = createClient()
 
+  const handleVerify = async () => {
+    if (!otpComplete) {
+      toast.error('Please enter the complete 6-digit code')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: otpRef.current }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        toast.error(result.error || 'Invalid code. Please try again.')
+        return
+      }
+
+      setDone(true)
+
+      // Sign in using temporarily stored credentials from signup
+      try {
+        const stored = sessionStorage.getItem('nexus_pending_signup')
+        if (stored) {
+          const { email: storedEmail, password } = JSON.parse(stored)
+          sessionStorage.removeItem('nexus_pending_signup')
+          const { error } = await supabase.auth.signInWithPassword({ email: storedEmail, password })
+          if (!error) {
+            toast.success('Welcome to Nexus!')
+            router.push('/feed')
+            return
+          }
+        }
+      } catch { /* sessionStorage unavailable */ }
+
+      toast.success('Email verified! Please sign in.')
+      router.push('/login')
+    } catch {
+      toast.error('Verification failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleResend = async () => {
-    if (!email) return
+    if (!email || resending) return
     setResending(true)
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+      await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'email_verification' }),
       })
-      if (error) { toast.error(error.message); return }
-      setSent(true)
-      toast.success('Confirmation email resent!')
+      toast.success('New code sent! Check your inbox.')
     } catch {
       toast.error('Failed to resend. Please try again.')
     } finally {
@@ -34,62 +81,84 @@ function VerifyEmailContent() {
     }
   }
 
+  if (done) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="space-y-6 text-center"
+      >
+        <div className="flex justify-center">
+          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/20 flex items-center justify-center">
+            <CheckCircle className="h-9 w-9 text-green-500" />
+          </div>
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Email verified!</h2>
+          <p className="text-sm text-muted-foreground mt-1">Signing you in...</p>
+        </div>
+      </motion.div>
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="space-y-6 text-center"
+      className="space-y-6"
     >
       {/* Icon */}
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
-        className="flex justify-center"
-      >
-        <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-600/20 border border-purple-500/20">
+      <div className="flex justify-center">
+        <div className="h-20 w-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-600/20 border border-purple-500/20">
           <Mail className="h-9 w-9 text-primary" />
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-            <span className="text-[8px] text-white font-bold">✓</span>
-          </span>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Text */}
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-foreground tracking-tight">Check your email</h2>
+      {/* Heading */}
+      <div className="space-y-2 text-center">
+        <h2 className="text-2xl font-bold text-foreground tracking-tight">Verify your email</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          We sent a confirmation link to{' '}
-          {email && <span className="text-foreground font-medium">{email}</span>}.
-          <br />
-          Click the link to activate your account.
+          We sent a 6-digit code to{' '}
+          {email && <span className="text-foreground font-medium">{email}</span>}
         </p>
       </div>
 
-      {/* Instructions */}
-      <div className="text-left space-y-2 bg-muted/40 rounded-xl p-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Didn&apos;t get it?</p>
-        <ul className="space-y-1 list-disc list-inside">
-          <li>Check your spam / junk folder</li>
-          <li>Wait a minute and check again</li>
-        </ul>
-      </div>
+      {/* OTP boxes */}
+      <OtpInput
+        onChange={code => {
+          otpRef.current = code
+          setOtpComplete(/^\d{6}$/.test(code))
+        }}
+        disabled={loading}
+      />
 
-      {/* Resend */}
       <button
         type="button"
-        onClick={handleResend}
-        disabled={resending || sent || !email}
+        onClick={handleVerify}
+        disabled={loading || !otpComplete}
         className={cn(
           'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-          'border border-border bg-background/50 hover:bg-accent transition-all duration-200',
-          'disabled:opacity-50 disabled:pointer-events-none'
+          'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
+          'transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none'
         )}
       >
-        <RefreshCw className={cn('h-4 w-4', resending && 'animate-spin')} />
-        {sent ? 'Email resent!' : resending ? 'Sending...' : 'Resend confirmation email'}
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Email'}
       </button>
+
+      {/* Resend */}
+      <div className="text-center space-y-1">
+        <p className="text-xs text-muted-foreground">Didn&apos;t receive the code?</p>
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={resending}
+          className="flex items-center gap-1.5 mx-auto text-sm text-primary hover:text-primary/80 font-medium transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', resending && 'animate-spin')} />
+          {resending ? 'Sending...' : 'Resend code'}
+        </button>
+      </div>
 
       <Link
         href="/login"

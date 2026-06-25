@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { adminClient } from '@/lib/supabase/server'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
+import { generateOTP } from '@/lib/utils/helpers'
+import { sendVerificationEmail } from '@/lib/email/sender'
 
 const schema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers and underscores'),
@@ -24,7 +26,6 @@ export async function POST(req: Request) {
     }
     const { username, email, password, fullName } = parsed.data
 
-    // Check username + email availability against profiles table
     const [{ data: takenUsername }, { data: takenEmail }] = await Promise.all([
       adminClient.from('profiles').select('id').eq('username', username).maybeSingle(),
       adminClient.from('profiles').select('id').eq('email', email).maybeSingle(),
@@ -33,12 +34,11 @@ export async function POST(req: Request) {
     if (takenUsername) return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
     if (takenEmail)    return NextResponse.json({ error: 'Email already registered. Try logging in.' }, { status: 409 })
 
-    // Create user with admin API — email_confirm:true skips the confirmation email
-    // entirely, so any email domain works (Outlook, corporate, etc.)
+    // Create user — email_confirm: false so sign-in requires OTP verification first
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: { username, full_name: fullName },
     })
 
@@ -53,7 +53,6 @@ export async function POST(req: Request) {
 
     const userId = authData.user.id
 
-    // Create profile row (DB trigger may also do this — ignore conflict)
     const { error: profileError } = await adminClient.from('profiles').upsert({
       id: userId,
       email,
@@ -63,9 +62,24 @@ export async function POST(req: Request) {
     }, { onConflict: 'id', ignoreDuplicates: true })
 
     if (profileError) {
-      // Non-fatal: profile might have been created by DB trigger
       console.warn('[signup] profile upsert warning:', profileError.message)
     }
+
+    // Generate 6-digit OTP, store in DB, send via Resend (works with all domains)
+    const code = generateOTP(6)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+    await adminClient.from('verification_codes').insert({
+      email,
+      user_id: userId,
+      code,
+      type: 'email_verification',
+      expires_at: expiresAt,
+    })
+
+    await sendVerificationEmail(email, code, fullName).catch((err: unknown) => {
+      console.error('[signup] sendVerificationEmail failed:', err)
+    })
 
     return NextResponse.json({ success: true })
   } catch (err) {

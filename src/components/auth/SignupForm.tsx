@@ -37,7 +37,6 @@ export function SignupForm() {
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
-      // Server-side: validate, check availability, create user (pre-confirmed — no email needed)
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,20 +56,13 @@ export function SignupForm() {
         return
       }
 
-      // Sign in immediately — account is already confirmed
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      })
+      // Store credentials temporarily so verify-email can sign in after OTP check
+      try {
+        sessionStorage.setItem('nexus_pending_signup', JSON.stringify({ email: data.email, password: data.password }))
+      } catch { /* sessionStorage unavailable */ }
 
-      if (signInError) {
-        toast.error('Account created! Please sign in.')
-        router.push('/login')
-        return
-      }
-
-      toast.success('Welcome to Nexus! 🎉')
-      router.push('/feed')
+      toast.success('Check your email for the verification code!')
+      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
     } catch {
       toast.error('Registration failed. Please check your connection and try again.')
     } finally {

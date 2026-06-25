@@ -4,8 +4,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Mail, ArrowLeft, ArrowRight, Loader2, CheckCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils/cn'
@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [sentEmail, setSentEmail] = useState('')
-  const supabase = createClient()
+  const router = useRouter()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -26,11 +26,13 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/api/auth/callback?type=recovery`,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: data.email }),
       })
-      // Don't reveal if email exists — always show success
-      if (error) console.error('[forgot-password]', error)
+      if (!res.ok) console.error('[forgot-password] API error')
+      // Always show success — never reveal if email is registered
       setSentEmail(data.email)
       setDone(true)
     } catch {
@@ -57,20 +59,37 @@ export default function ForgotPasswordPage() {
             <CheckCircle className="h-9 w-9 text-primary" />
           </div>
         </motion.div>
+
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-foreground tracking-tight">Check your inbox</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             If <span className="text-foreground font-medium">{sentEmail}</span> is registered,
-            you&apos;ll receive a password reset link shortly.
+            you&apos;ll receive a 6-digit reset code shortly.
           </p>
         </div>
+
         <div className="text-left space-y-2 bg-muted/40 rounded-xl p-4 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">Didn&apos;t get it?</p>
           <ul className="space-y-1 list-disc list-inside">
             <li>Check your spam / junk folder</li>
-            <li>The link expires in 1 hour</li>
+            <li>The code expires in 15 minutes</li>
           </ul>
         </div>
+
+        <motion.button
+          type="button"
+          onClick={() => router.push(`/reset-password?email=${encodeURIComponent(sentEmail)}`)}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className={cn(
+            'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
+            'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
+            'transition-all duration-200'
+          )}
+        >
+          Enter reset code <ArrowRight className="h-4 w-4" />
+        </motion.button>
+
         <Link
           href="/login"
           className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -92,7 +111,7 @@ export default function ForgotPasswordPage() {
       <div className="space-y-1">
         <h2 className="text-2xl font-bold text-foreground tracking-tight">Reset password</h2>
         <p className="text-sm text-muted-foreground">
-          Enter your email and we&apos;ll send a reset link
+          Enter your email and we&apos;ll send a 6-digit reset code
         </p>
       </div>
 
@@ -128,12 +147,11 @@ export default function ForgotPasswordPage() {
           whileTap={{ scale: 0.99 }}
           className={cn(
             'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-            'nexus-gradient hover:opacity-90',
-            'text-white shadow-lg shadow-purple-500/25 transition-all duration-200',
-            'disabled:opacity-60 disabled:pointer-events-none'
+            'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
+            'transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none'
           )}
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Send Reset Link</span><ArrowRight className="h-4 w-4" /></>}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Send Reset Code</span><ArrowRight className="h-4 w-4" /></>}
         </motion.button>
       </form>
 

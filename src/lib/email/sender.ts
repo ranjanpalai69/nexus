@@ -17,13 +17,13 @@ function baseTemplate(content: string) {
 <style>
   body { margin: 0; padding: 0; background: #0f0f0f; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   .container { max-width: 560px; margin: 40px auto; background: #1a1a2e; border-radius: 16px; overflow: hidden; }
-  .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
+  .header { background: linear-gradient(135deg, #FF5C00 0%, #E91E8C 35%, #9333EA 65%, #06B6D4 100%); padding: 32px; text-align: center; }
   .header h1 { color: #fff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
   .body { padding: 32px; color: #e2e8f0; }
   .body p { line-height: 1.6; margin: 0 0 16px; }
-  .code-box { background: #0f0f0f; border: 2px solid #6366f1; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0; }
-  .code { font-size: 36px; font-weight: 700; letter-spacing: 12px; color: #818cf8; font-family: monospace; }
-  .btn { display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 50px; font-weight: 600; font-size: 16px; margin: 16px 0; }
+  .code-box { background: #0f0f0f; border: 2px solid #9333EA; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0; }
+  .code { font-size: 36px; font-weight: 700; letter-spacing: 12px; color: #c084fc; font-family: monospace; }
+  .btn { display: inline-block; background: linear-gradient(135deg, #E91E8C, #9333EA, #06B6D4); color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 50px; font-weight: 600; font-size: 16px; margin: 16px 0; }
   .footer { padding: 24px 32px; border-top: 1px solid #2a2a4a; color: #64748b; font-size: 12px; }
 </style>
 </head>
