@@ -23,14 +23,8 @@ export function usePushSubscription() {
 
     const register = async () => {
       try {
-        // Register service worker (or get existing registration)
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-
-        // Tell a waiting SW (new version) to activate immediately
-        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-
-        // Wait until active
-        await navigator.serviceWorker.ready
+        // SW is already registered by PWAInit — just wait for it to be active
+        const reg = await navigator.serviceWorker.ready
 
         if (Notification.permission === 'denied') return
 

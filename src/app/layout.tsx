@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono'
 import { ThemeProvider } from 'next-themes'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { AuthProvider } from '@/components/auth/AuthProvider'
+import { PWAInit } from '@/components/PWAInit'
 import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange={false}>
           <QueryProvider>
             <AuthProvider>
+              <PWAInit />
               {children}
               <Toaster
                 position="bottom-right"
