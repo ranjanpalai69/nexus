@@ -1,7 +1,3 @@
-'use client'
-import Image from 'next/image'
-import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 interface LogoProps {
@@ -10,53 +6,42 @@ interface LogoProps {
   className?: string
 }
 
-// Approximate aspect ratio of the logo PNGs (~4.6 : 1 width:height)
-// The N icon takes up the leftmost ~1/4.6 of the image width.
-// For "icon" variant we overflow-clip to show only the icon portion.
+// Approximate natural aspect ratio of the PNG (~4.6 : 1)
+// The "N" icon occupies the leftmost ~22% of the full image width
 const heights = { sm: 28, md: 34, lg: 44, xl: 56 }
-const fullWidths = { sm: 120, md: 148, lg: 190, xl: 240 }
+const widths  = { sm: 120, md: 148, lg: 190, xl: 240 }
 
 export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
-  const { resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-
   const h = heights[size]
-  const w = fullWidths[size]
-  // PNG natural ratio ≈ 4.6 : 1; icon occupies leftmost ~21% of width ≈ h * 1.05
-  const iconW = Math.round(h * 1.1)
+  const w = widths[size]
+  const iconW = Math.round(h * 1.1)   // clip container for icon-only variant
+  const containerW = variant === 'icon' ? iconW : w
 
-  const src = !mounted || resolvedTheme === 'dark' ? '/Nexus-White.png' : '/Nexus-Black.png'
-
-  if (variant === 'icon') {
-    return (
-      <div
-        className={cn('overflow-hidden shrink-0 select-none', className)}
-        style={{ width: iconW, height: h }}
-      >
-        <Image
-          src={src}
-          alt="Nexus"
-          width={w}
-          height={h}
-          className="h-full w-auto max-w-none"
-          priority
-          unoptimized
-        />
-      </div>
-    )
-  }
+  const imgCls = variant === 'icon'
+    ? 'h-full w-auto max-w-none'
+    : 'h-full w-auto object-contain object-left'
 
   return (
-    <div className={cn('shrink-0 select-none', className)} style={{ height: h }}>
-      <Image
-        src={src}
+    <div
+      className={cn('overflow-hidden shrink-0 select-none', className)}
+      style={{ width: containerW, height: h }}
+    >
+      {/* light mode — hidden when <html class="dark"> */}
+      <img
+        src="/Nexus-Black.png"
         alt="Nexus"
-        width={w}
         height={h}
-        className="h-full w-auto object-contain object-left"
-        priority
-        unoptimized
+        loading="eager"
+        className={cn(imgCls, 'dark:hidden')}
+      />
+      {/* dark mode — visible only when <html class="dark"> */}
+      <img
+        src="/Nexus-White.png"
+        alt=""
+        aria-hidden="true"
+        height={h}
+        loading="eager"
+        className={cn(imgCls, 'hidden dark:block')}
       />
     </div>
   )
