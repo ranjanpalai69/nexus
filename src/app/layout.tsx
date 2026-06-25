@@ -14,10 +14,15 @@ export const metadata: Metadata = {
   authors: [{ name: 'Nexus Team' }],
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/apple-touch-icon.svg', sizes: '180x180', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/icon-16.png',  sizes: '16x16',  type: 'image/png' },
+      { url: '/icon-32.png',  sizes: '32x32',  type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon.svg',  type: 'image/svg+xml' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Nexus' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Nexus' },
 }
 
 export const viewport: Viewport = {
