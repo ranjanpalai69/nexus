@@ -50,7 +50,8 @@ export function MobileNav() {
       <div className="flex justify-center">
         <button
           onClick={() => setCreatePostOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-lg active:scale-95 transition-transform"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg active:scale-95 transition-transform"
+          style={{ background: 'linear-gradient(135deg, #E91E8C, #9333EA, #06B6D4)' }}
         >
           <FontAwesomeIcon icon={faPlus} className="h-5 w-5" />
         </button>

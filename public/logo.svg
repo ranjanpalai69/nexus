@@ -1,44 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="50%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#a855f7"/>
+    <linearGradient id="nGrad" x1="0" y1="200" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FF5C00"/>
+      <stop offset="33%"  stop-color="#E91E8C"/>
+      <stop offset="66%"  stop-color="#9333EA"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
     </linearGradient>
-    <linearGradient id="glow" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#c084fc" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="shadow">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#6366f1" flood-opacity="0.4"/>
-    </filter>
   </defs>
-
-  <!-- Background rounded square -->
-  <rect width="200" height="200" rx="44" fill="url(#bg)" filter="url(#shadow)"/>
-
-  <!-- Inner glow overlay -->
-  <rect width="200" height="200" rx="44" fill="url(#glow)"/>
-
-  <!-- Top-left highlight -->
-  <ellipse cx="60" cy="50" rx="50" ry="35" fill="white" fill-opacity="0.08"/>
-
-  <!-- Connection nodes (corners + center) -->
-  <circle cx="52" cy="52" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="148" cy="52" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="52" cy="148" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="148" cy="148" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="100" cy="116" r="7" fill="white" fill-opacity="0.95"/>
-
-  <!-- N letterform from nodes -->
-  <!-- Left vertical bar -->
-  <line x1="52" y1="52" x2="52" y2="148" stroke="white" stroke-width="11" stroke-linecap="round"/>
-  <!-- Diagonal -->
-  <line x1="52" y1="52" x2="148" y2="148" stroke="white" stroke-width="11" stroke-linecap="round"/>
-  <!-- Right vertical bar -->
-  <line x1="148" y1="52" x2="148" y2="148" stroke="white" stroke-width="11" stroke-linecap="round"/>
-
-  <!-- Small accent dots on diagonal midpoints -->
-  <circle cx="76" cy="76" r="4" fill="white" fill-opacity="0.5"/>
-  <circle cx="124" cy="124" r="4" fill="white" fill-opacity="0.5"/>
+  <!-- Background for icon-only usage (dark) -->
+  <rect width="200" height="200" rx="40" fill="#0F0A1E"/>
+  <!-- N strokes: bottom-left → top-left → bottom-right → top-right -->
+  <path d="M 44 164 L 44 36 L 156 164 L 156 36"
+        stroke="url(#nGrad)"
+        stroke-width="22"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
 </svg>

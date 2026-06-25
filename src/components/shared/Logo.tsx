@@ -1,3 +1,4 @@
+'use client'
 import { cn } from '@/lib/utils/cn'
 
 interface LogoProps {
@@ -6,8 +7,11 @@ interface LogoProps {
   className?: string
 }
 
-const iconSizes = { sm: 28, md: 36, lg: 44, xl: 56 }
-const textSizes = { sm: 'text-lg', md: 'text-xl', lg: 'text-2xl', xl: 'text-3xl' }
+const iconSizes = { sm: 26, md: 34, lg: 42, xl: 54 }
+const textSizes = { sm: 'text-base', md: 'text-lg', lg: 'text-2xl', xl: 'text-3xl' }
+
+// Gradient stops matching the reference logo:  orange → pink → purple → cyan
+const GRAD_ID = 'nexus-n-grad'
 
 export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
   const s = iconSizes[size]
@@ -18,43 +22,38 @@ export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
       <svg
         width={s}
         height={s}
-        viewBox="0 0 200 200"
+        viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
       >
         <defs>
-          <linearGradient id="nexus-logo-grad" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="50%" stopColor="#8b5cf6" />
-            <stop offset="100%" stopColor="#a855f7" />
+          {/* diagonal: bottom-left (orange) → top-right (cyan) */}
+          <linearGradient id={GRAD_ID} x1="0" y1="100" x2="100" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stopColor="#FF5C00" />
+            <stop offset="33%"  stopColor="#E91E8C" />
+            <stop offset="66%"  stopColor="#9333EA" />
+            <stop offset="100%" stopColor="#06B6D4" />
           </linearGradient>
-          <filter id="nexus-glow">
-            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#6366f1" floodOpacity="0.35" />
-          </filter>
         </defs>
-        <rect width="200" height="200" rx="44" fill="url(#nexus-logo-grad)" filter="url(#nexus-glow)" />
-        <rect width="200" height="200" rx="44" fill="white" fillOpacity="0.06" />
-        <circle cx="52" cy="52" r="9" fill="white" fillOpacity="0.95" />
-        <circle cx="148" cy="52" r="9" fill="white" fillOpacity="0.95" />
-        <circle cx="52" cy="148" r="9" fill="white" fillOpacity="0.95" />
-        <circle cx="148" cy="148" r="9" fill="white" fillOpacity="0.95" />
-        <circle cx="100" cy="116" r="6" fill="white" fillOpacity="0.9" />
-        <line x1="52" y1="52" x2="52" y2="148" stroke="white" strokeWidth="11" strokeLinecap="round" />
-        <line x1="52" y1="52" x2="148" y2="148" stroke="white" strokeWidth="11" strokeLinecap="round" />
-        <line x1="148" y1="52" x2="148" y2="148" stroke="white" strokeWidth="11" strokeLinecap="round" />
-        <circle cx="76" cy="76" r="4" fill="white" fillOpacity="0.45" />
-        <circle cx="124" cy="124" r="4" fill="white" fillOpacity="0.45" />
+        {/* N shape: bottom-left → top-left → bottom-right → top-right */}
+        <path
+          d="M 16 84 L 16 16 L 84 84 L 84 16"
+          stroke={`url(#${GRAD_ID})`}
+          strokeWidth="13"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
 
       {variant === 'full' && (
         <span
           className={cn(
-            'font-bold tracking-tight bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 bg-clip-text text-transparent',
+            'font-black tracking-[0.22em] uppercase dark:text-white text-gray-900',
             t
           )}
         >
-          nexus
+          Nexus
         </span>
       )}
     </div>

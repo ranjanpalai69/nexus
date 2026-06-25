@@ -1,18 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
   <defs>
-    <linearGradient id="bgA" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#a855f7"/>
+    <linearGradient id="ag" x1="0" y1="180" x2="180" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FF5C00"/>
+      <stop offset="33%"  stop-color="#E91E8C"/>
+      <stop offset="66%"  stop-color="#9333EA"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
     </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="40" fill="url(#bgA)"/>
-  <!-- N letterform -->
-  <circle cx="47" cy="47" r="8" fill="white" fill-opacity="0.9"/>
-  <circle cx="133" cy="47" r="8" fill="white" fill-opacity="0.9"/>
-  <circle cx="47" cy="133" r="8" fill="white" fill-opacity="0.9"/>
-  <circle cx="133" cy="133" r="8" fill="white" fill-opacity="0.9"/>
-  <circle cx="90" cy="104" r="6" fill="white"/>
-  <line x1="47" y1="47" x2="47" y2="133" stroke="white" stroke-width="10" stroke-linecap="round"/>
-  <line x1="47" y1="47" x2="133" y2="133" stroke="white" stroke-width="10" stroke-linecap="round"/>
-  <line x1="133" y1="47" x2="133" y2="133" stroke="white" stroke-width="10" stroke-linecap="round"/>
+  <rect width="180" height="180" rx="40" fill="#0F0A1E"/>
+  <path d="M 38 148 L 38 32 L 142 148 L 142 32"
+        stroke="url(#ag)"
+        stroke-width="20"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
 </svg>
