@@ -1,3 +1,5 @@
+'use client'
+
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { useState } from 'react'
 import Link from 'next/link'

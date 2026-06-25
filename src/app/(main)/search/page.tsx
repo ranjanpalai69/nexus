@@ -1,3 +1,5 @@
+'use client'
+
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -78,7 +80,7 @@ function SuggestionSection({ title, icon, users }: {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
                     <p className="text-sm font-semibold truncate">{user.full_name || user.username}</p>
-                    {user.is_verified && <span className="text-primary text-xs shrink-0">✓</span>}
+                    {user.is_verified && <VerifiedBadge />}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
                   <p className="text-xs text-primary/70 truncate mt-0.5">{user.reason}</p>

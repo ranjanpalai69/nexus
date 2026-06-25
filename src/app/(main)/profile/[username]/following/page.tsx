@@ -1,3 +1,5 @@
+'use client'
+
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { use } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
