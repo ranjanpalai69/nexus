@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -121,7 +121,7 @@ export function PostCard({ post, onDelete, defaultOpenComments = false }: PostCa
           <div>
             <div className="flex items-center gap-1">
               <span className="text-sm font-semibold group-hover:underline">{post.author.full_name || post.author.username}</span>
-              {post.author.is_verified && <span className="text-primary text-xs">✓</span>}
+              {post.author.is_verified && <VerifiedBadge />}
             </div>
             <p className="text-xs text-muted-foreground">@{post.author.username} · {timeAgo(post.created_at)}</p>
           </div>

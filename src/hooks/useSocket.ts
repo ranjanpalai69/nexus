@@ -89,7 +89,7 @@ export function useSocket() {
           toast(`${senderName}${preview ? ': ' + preview : ''}`, {
             duration: 4000,
             position: 'top-right',
-            icon: '💬',
+            icon: '→',
             style: { cursor: 'pointer' },
             id: `msg-${message.conversation_id}`,
           })

@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -128,7 +128,7 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">{profile.full_name || profile.username}</h1>
-              {profile.is_verified && <span className="text-primary text-sm">✓</span>}
+              {profile.is_verified && <VerifiedBadge className="h-4 w-4" />}
             </div>
             <p className="text-muted-foreground text-sm">@{profile.username}</p>
           </div>

@@ -38,8 +38,8 @@
       align-items: center;
       justify-content: center;
       margin: 0 auto 1.5rem;
-      font-size: 2.25rem;
     }
+    .icon-wrap svg { width: 36px; height: 36px; stroke: #c084fc; }
     h1 {
       font-size: 1.5rem;
       font-weight: 700;
@@ -80,7 +80,14 @@
 <body>
   <div class="card">
     <img src="/Nexus-White.png" alt="Nexus" class="logo" />
-    <div class="icon-wrap">📡</div>
+    <div class="icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
     <h1>You're offline</h1>
     <p>Check your internet connection and try again. Cached pages and media may still be available.</p>
     <button class="btn" onclick="window.location.reload()">

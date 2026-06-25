@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -82,7 +82,7 @@ export function RightPanel() {
                     <Link href={`/profile/${u.username}`} className="text-sm font-semibold hover:underline truncate">
                       {u.full_name || u.username}
                     </Link>
-                    {u.is_verified && <span className="text-primary text-[10px]">✓</span>}
+                    {u.is_verified && <VerifiedBadge className="h-3 w-3" />}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {u.reason ?? `${formatNumber(u.followers_count)} followers`}

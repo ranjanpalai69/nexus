@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -170,7 +170,7 @@ function SearchContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
                           <p className="text-sm font-semibold truncate">{u.full_name || u.username}</p>
-                          {u.is_verified && <span className="text-primary text-xs">✓</span>}
+                          {u.is_verified && <VerifiedBadge />}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">@{u.username} · {u.followers_count} followers</p>
                         {u.bio && <p className="text-xs text-muted-foreground truncate mt-0.5">{u.bio}</p>}

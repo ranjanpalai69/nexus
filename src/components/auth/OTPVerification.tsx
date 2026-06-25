@@ -62,7 +62,7 @@ export function OTPVerification({ email, type, onSuccess }: OTPVerificationProps
       if (onSuccess) {
         onSuccess(code)
       } else {
-        toast.success(type === 'email_verification' ? 'Email verified! Welcome to Nexus 🎉' : 'Code verified!')
+        toast.success(type === 'email_verification' ? 'Email verified! Welcome to Nexus' : 'Code verified!')
         router.push(type === 'email_verification' ? '/login' : `/reset-password?email=${encodeURIComponent(email)}&code=${code}`)
       }
     } catch {

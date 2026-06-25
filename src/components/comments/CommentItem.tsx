@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -83,7 +83,7 @@ export function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
             <Link href={`/profile/${comment.author.username}`} className="text-xs font-semibold hover:underline">
               {comment.author.full_name || comment.author.username}
             </Link>
-            {comment.author.is_verified && <span className="text-primary text-[10px]">✓</span>}
+            {comment.author.is_verified && <VerifiedBadge className="h-3 w-3" />}
             <span className="text-[10px] text-muted-foreground">{timeAgo(comment.created_at)}</span>
           </div>
           <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{comment.content}</p>

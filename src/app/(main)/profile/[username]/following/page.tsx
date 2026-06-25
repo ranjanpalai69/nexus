@@ -1,4 +1,4 @@
-'use client'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { use } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
@@ -91,7 +91,7 @@ function UserRow({ user }: { user: Profile }) {
         <Link href={`/profile/${user.username}`} className="hover:underline">
           <p className="text-sm font-semibold truncate flex items-center gap-1">
             {user.full_name || user.username}
-            {user.is_verified && <span className="text-primary text-xs">✓</span>}
+            {user.is_verified && <VerifiedBadge />}
           </p>
         </Link>
         <p className="text-xs text-muted-foreground">@{user.username}</p>
