@@ -1,4 +1,7 @@
 'use client'
+import Image from 'next/image'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 interface LogoProps {
@@ -7,55 +10,54 @@ interface LogoProps {
   className?: string
 }
 
-const iconSizes = { sm: 26, md: 34, lg: 42, xl: 54 }
-const textSizes = { sm: 'text-base', md: 'text-lg', lg: 'text-2xl', xl: 'text-3xl' }
-
-// Gradient stops matching the reference logo:  orange → pink → purple → cyan
-const GRAD_ID = 'nexus-n-grad'
+// Approximate aspect ratio of the logo PNGs (~4.6 : 1 width:height)
+// The N icon takes up the leftmost ~1/4.6 of the image width.
+// For "icon" variant we overflow-clip to show only the icon portion.
+const heights = { sm: 28, md: 34, lg: 44, xl: 56 }
+const fullWidths = { sm: 120, md: 148, lg: 190, xl: 240 }
 
 export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
-  const s = iconSizes[size]
-  const t = textSizes[size]
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  const h = heights[size]
+  const w = fullWidths[size]
+  // PNG natural ratio ≈ 4.6 : 1; icon occupies leftmost ~21% of width ≈ h * 1.05
+  const iconW = Math.round(h * 1.1)
+
+  const src = !mounted || resolvedTheme === 'dark' ? '/Nexus-White.png' : '/Nexus-Black.png'
+
+  if (variant === 'icon') {
+    return (
+      <div
+        className={cn('overflow-hidden shrink-0 select-none', className)}
+        style={{ width: iconW, height: h }}
+      >
+        <Image
+          src={src}
+          alt="Nexus"
+          width={w}
+          height={h}
+          className="h-full w-auto max-w-none"
+          priority
+          unoptimized
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className={cn('flex items-center gap-2.5 select-none', className)}>
-      <svg
-        width={s}
-        height={s}
-        viewBox="0 0 100 100"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        <defs>
-          {/* diagonal: bottom-left (orange) → top-right (cyan) */}
-          <linearGradient id={GRAD_ID} x1="0" y1="100" x2="100" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%"   stopColor="#FF5C00" />
-            <stop offset="33%"  stopColor="#E91E8C" />
-            <stop offset="66%"  stopColor="#9333EA" />
-            <stop offset="100%" stopColor="#06B6D4" />
-          </linearGradient>
-        </defs>
-        {/* N shape: bottom-left → top-left → bottom-right → top-right */}
-        <path
-          d="M 16 84 L 16 16 L 84 84 L 84 16"
-          stroke={`url(#${GRAD_ID})`}
-          strokeWidth="13"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-
-      {variant === 'full' && (
-        <span
-          className={cn(
-            'font-black tracking-[0.22em] uppercase dark:text-white text-gray-900',
-            t
-          )}
-        >
-          Nexus
-        </span>
-      )}
+    <div className={cn('shrink-0 select-none', className)} style={{ height: h }}>
+      <Image
+        src={src}
+        alt="Nexus"
+        width={w}
+        height={h}
+        className="h-full w-auto object-contain object-left"
+        priority
+        unoptimized
+      />
     </div>
   )
 }

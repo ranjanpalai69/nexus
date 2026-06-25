@@ -216,8 +216,8 @@ export function SignupForm() {
           whileTap={{ scale: 0.99 }}
           className={cn(
             'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-            'bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600',
-            'text-white shadow-lg shadow-indigo-500/25 transition-all duration-200',
+            'nexus-gradient hover:opacity-90',
+            'text-white shadow-lg shadow-purple-500/25 transition-all duration-200',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             'disabled:opacity-60 disabled:pointer-events-none'
           )}

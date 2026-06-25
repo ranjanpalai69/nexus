@@ -82,7 +82,7 @@ export function Sidebar() {
                 </span>
               )}
               {item.badge === 'messages' && unreadMessages > 0 && (
-                <span className="lg:ml-auto absolute -top-0.5 -right-0.5 lg:static lg:flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-500 px-1 text-xs text-white font-bold flex">
+                <span className="lg:ml-auto absolute -top-0.5 -right-0.5 lg:static lg:flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1 text-xs text-white font-bold flex">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}

@@ -76,7 +76,7 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden">
       {/* Cover */}
-      <div className="h-40 md:h-52 bg-gradient-to-br from-indigo-900 via-violet-900 to-purple-900 relative">
+      <div className="h-40 md:h-52 bg-gradient-to-br from-orange-950 via-purple-950 to-cyan-950 relative">
         {profile.cover_url && (
           <Image src={profile.cover_url} alt="Cover" fill className="object-cover" />
         )}

@@ -76,7 +76,7 @@ export function StoriesBar() {
                   className={cn(
                     'h-16 w-16 rounded-full p-0.5 transition-all',
                     group.hasUnviewed
-                      ? 'bg-gradient-to-tr from-indigo-500 via-violet-500 to-pink-500'
+                      ? 'nexus-gradient'
                       : 'bg-muted'
                   )}
                 >

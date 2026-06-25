@@ -7,7 +7,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 text-center p-6">
       <div>
-        <p className="text-8xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">404</p>
+        <p className="text-8xl font-bold text-gradient">404</p>
         <h1 className="text-2xl font-bold mt-2">Page not found</h1>
         <p className="text-muted-foreground mt-1 text-sm">This page doesn&apos;t exist or was removed.</p>
       </div>

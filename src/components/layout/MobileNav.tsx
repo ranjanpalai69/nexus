@@ -57,7 +57,7 @@ export function MobileNav() {
         </button>
       </div>
 
-      {navLink('/messages', faMessage, unreadMessages, 'bg-indigo-500')}
+      {navLink('/messages', faMessage, unreadMessages, 'bg-purple-600')}
 
       <Link
         href={user ? `/profile/${user.username}` : '/login'}

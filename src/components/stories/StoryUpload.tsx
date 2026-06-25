@@ -124,7 +124,7 @@ export function StoryUpload({ onClose, onSuccess }: StoryUploadProps) {
           <button
             disabled={!file || uploading}
             onClick={handleSubmit}
-            className="w-full h-11 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full h-11 rounded-xl nexus-gradient text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {uploading ? (
               <FontAwesomeIcon icon={faSpinner} className="h-4 w-4 animate-spin" />

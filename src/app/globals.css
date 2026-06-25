@@ -94,6 +94,11 @@
     box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
   }
 
+  /* Nexus brand gradient — orange → pink → purple → cyan */
+  .nexus-gradient {
+    background: linear-gradient(135deg, #FF5C00 0%, #E91E8C 35%, #9333EA 65%, #06B6D4 100%);
+  }
+
   .text-gradient {
     background: linear-gradient(90deg, #FF5C00, #E91E8C, #9333EA, #06B6D4);
     -webkit-background-clip: text;

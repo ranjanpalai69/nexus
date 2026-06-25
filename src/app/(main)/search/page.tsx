@@ -217,7 +217,7 @@ function SearchContent() {
             />
             <SuggestionSection
               title="People You Might Know"
-              icon={<FontAwesomeIcon icon={faUsers} className="h-3.5 w-3.5 text-indigo-500" />}
+              icon={<FontAwesomeIcon icon={faUsers} className="h-3.5 w-3.5 text-purple-500" />}
               users={mutualUsers}
             />
             <SuggestionSection

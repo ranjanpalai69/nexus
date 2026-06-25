@@ -327,7 +327,7 @@ export function MessageThread({ conversationId, otherUserId }: MessageThreadProp
             {msg.reply_to && (
               <div className={cn(
                 'rounded-xl border-l-4 bg-muted/60 px-2.5 py-1.5 text-xs opacity-80 mb-0.5',
-                isMine ? 'border-l-indigo-400' : 'border-l-primary'
+                isMine ? 'border-l-purple-400' : 'border-l-primary'
               )}>
                 <p className="font-semibold text-primary/80">
                   {(msg.reply_to as MessageWithSender).sender?.username ?? 'Unknown'}
@@ -339,7 +339,7 @@ export function MessageThread({ conversationId, otherUserId }: MessageThreadProp
             <div className={cn(
               'rounded-2xl px-3.5 py-2 text-sm break-words',
               isMine
-                ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
+                ? 'rounded-tr-sm nexus-gradient text-white'
                 : 'rounded-tl-sm bg-muted text-foreground'
             )}>
               {/* Text */}

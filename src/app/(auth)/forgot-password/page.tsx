@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
           transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
           className="flex justify-center"
         >
-          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/20 flex items-center justify-center">
+          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-600/20 border border-purple-500/20 flex items-center justify-center">
             <CheckCircle className="h-9 w-9 text-primary" />
           </div>
         </motion.div>
@@ -128,8 +128,8 @@ export default function ForgotPasswordPage() {
           whileTap={{ scale: 0.99 }}
           className={cn(
             'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-            'bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600',
-            'text-white shadow-lg shadow-indigo-500/25 transition-all duration-200',
+            'nexus-gradient hover:opacity-90',
+            'text-white shadow-lg shadow-purple-500/25 transition-all duration-200',
             'disabled:opacity-60 disabled:pointer-events-none'
           )}
         >

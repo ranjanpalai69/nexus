@@ -12,10 +12,10 @@ const icons = {
   like_post:    { icon: faHeart,    color: 'text-red-500 bg-red-500/10' },
   like_comment: { icon: faHeart,    color: 'text-red-500 bg-red-500/10' },
   comment:      { icon: faComment,  color: 'text-blue-500 bg-blue-500/10' },
-  reply:        { icon: faComment,  color: 'text-indigo-500 bg-indigo-500/10' },
-  follow:       { icon: faUserPlus, color: 'text-violet-500 bg-violet-500/10' },
+  reply:        { icon: faComment,  color: 'text-purple-500 bg-purple-500/10' },
+  follow:       { icon: faUserPlus, color: 'text-pink-500 bg-pink-500/10' },
   mention:      { icon: faBell,     color: 'text-amber-500 bg-amber-500/10' },
-  message:      { icon: faMessage,  color: 'text-indigo-500 bg-indigo-500/10' },
+  message:      { icon: faMessage,  color: 'text-purple-500 bg-purple-500/10' },
 }
 
 const labels: Record<string, string> = {

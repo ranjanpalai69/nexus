@@ -48,7 +48,7 @@ function VerifyEmailContent() {
         transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
         className="flex justify-center"
       >
-        <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/20">
+        <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-600/20 border border-purple-500/20">
           <Mail className="h-9 w-9 text-primary" />
           <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
             <span className="text-[8px] text-white font-bold">✓</span>
