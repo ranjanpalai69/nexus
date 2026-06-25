@@ -37,52 +37,42 @@ export function SignupForm() {
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
-      // 1. Check username + email availability
-      const check = await fetch('/api/auth/signup', {
+      // Server-side: validate, check availability, create user (pre-confirmed — no email needed)
+      const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: data.username, email: data.email }),
+        body: JSON.stringify({
+          username: data.username,
+          email: data.email,
+          password: data.password,
+          fullName: data.fullName,
+        }),
       })
-      const checkResult = await check.json()
-      if (!check.ok) { toast.error(checkResult.error); return }
 
-      // 2. Sign up via Supabase
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '')
-      const { data: signUpData, error } = await supabase.auth.signUp({
+      let result: { success?: boolean; error?: string } = {}
+      try { result = await res.json() } catch { /* non-JSON body */ }
+
+      if (!res.ok) {
+        toast.error(result.error || 'Sign up failed. Please try again.')
+        return
+      }
+
+      // Sign in immediately — account is already confirmed
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
-        options: {
-          data: { username: data.username, full_name: data.fullName },
-          emailRedirectTo: `${appUrl}/api/auth/callback`,
-        },
       })
 
-      if (error) {
-        if (error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already been registered')) {
-          toast.error('Email already registered. Try logging in instead.')
-        } else {
-          toast.error(error.message || 'Sign up failed. Please try again.')
-        }
+      if (signInError) {
+        toast.error('Account created! Please sign in.')
+        router.push('/login')
         return
       }
 
-      // identities is empty when the email already exists in auth.users (unconfirmed)
-      if (!signUpData.user || signUpData.user.identities?.length === 0) {
-        toast.error('Email already registered. Check your inbox for a confirmation email.')
-        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
-        return
-      }
-
-      if (signUpData.session) {
-        // Email confirmation disabled — signed in immediately
-        toast.success('Account created! Welcome to Nexus 🎉')
-        router.push('/feed')
-      } else {
-        toast.success('Check your email and click the confirmation link!')
-        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
-      }
+      toast.success('Welcome to Nexus! 🎉')
+      router.push('/feed')
     } catch {
-      toast.error('Registration failed. Please try again.')
+      toast.error('Registration failed. Please check your connection and try again.')
     } finally {
       setLoading(false)
     }
