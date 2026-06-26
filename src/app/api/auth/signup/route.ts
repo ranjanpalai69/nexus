@@ -78,7 +78,8 @@ export async function POST(req: Request) {
       expires_at: expiresAt,
     })
 
-    await sendVerificationEmail(email, code, fullName).catch((err: unknown) => {
+    // Fire-and-forget — don't block the response on SMTP
+    sendVerificationEmail(email, code, fullName).catch((err: unknown) => {
       console.error('[signup] sendVerificationEmail failed:', err)
     })
 

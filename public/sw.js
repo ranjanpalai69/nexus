@@ -1,6 +1,6 @@
 // Nexus Service Worker — push notifications + PWA caching
 
-const CACHE = 'nexus-v4'
+const CACHE = 'nexus-v5'
 const OFFLINE = '/offline.html'
 
 // Pre-cache critical shell assets on install

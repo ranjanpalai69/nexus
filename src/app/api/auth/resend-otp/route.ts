@@ -39,9 +39,9 @@ export async function POST(req: Request) {
       })
 
       if (type === 'email_verification') {
-        await sendVerificationEmail(email, code, profile.full_name || undefined).catch(console.error)
+        sendVerificationEmail(email, code, profile.full_name || undefined).catch(console.error)
       } else {
-        await sendPasswordResetEmail(email, code).catch(console.error)
+        sendPasswordResetEmail(email, code).catch(console.error)
       }
     }
 

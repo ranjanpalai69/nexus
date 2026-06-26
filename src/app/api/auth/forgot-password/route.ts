@@ -36,7 +36,10 @@ export async function POST(req: Request) {
         expires_at: expiresAt,
       })
 
-      await sendPasswordResetEmail(email, code)
+      // Fire-and-forget — don't block the response on SMTP
+      sendPasswordResetEmail(email, code).catch((err) => {
+        console.error('[forgot-password] sendMail failed:', err)
+      })
     }
 
     // Always return success to not reveal if email exists
