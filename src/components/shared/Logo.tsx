@@ -1,3 +1,6 @@
+'use client'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 interface LogoProps {
@@ -6,42 +9,38 @@ interface LogoProps {
   className?: string
 }
 
-// Approximate natural aspect ratio of the PNG (~4.6 : 1)
-// The "N" icon occupies the leftmost ~22% of the full image width
-const heights = { sm: 28, md: 34, lg: 44, xl: 56 }
-const widths  = { sm: 120, md: 148, lg: 190, xl: 240 }
+// Natural aspect ratio of the PNG (~4.6 : 1). Icon clips to the leading "N".
+const heights: Record<string, number> = { sm: 28, md: 34, lg: 44, xl: 56 }
+const widths:  Record<string, number> = { sm: 120, md: 148, lg: 190, xl: 240 }
 
 export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const h = heights[size]
   const w = widths[size]
-  const iconW = Math.round(h * 1.1)   // clip container for icon-only variant
+  const iconW = Math.round(h * 1.1)
   const containerW = variant === 'icon' ? iconW : w
 
-  const imgCls = variant === 'icon'
-    ? 'h-full w-auto max-w-none'
-    : 'h-full w-auto object-contain object-left'
+  // Before mount default to dark (matches defaultTheme="dark") to avoid flash
+  const isDark = !mounted || resolvedTheme === 'dark'
+  const src = isDark ? '/Nexus-White.png' : '/Nexus-Black.png'
 
   return (
     <div
-      className={cn('overflow-hidden shrink-0 select-none', className)}
+      className={cn('shrink-0 select-none overflow-hidden', className)}
       style={{ width: containerW, height: h }}
     >
-      {/* light mode — hidden when <html class="dark"> */}
       <img
-        src="/Nexus-Black.png"
+        src={src}
         alt="Nexus"
-        height={h}
+        style={{ height: h, width: 'auto', display: 'block' }}
+        className={cn(
+          variant === 'icon' ? 'max-w-none' : 'object-contain object-left',
+          'transition-opacity duration-200'
+        )}
         loading="eager"
-        className={cn(imgCls, 'dark:hidden')}
-      />
-      {/* dark mode — visible only when <html class="dark"> */}
-      <img
-        src="/Nexus-White.png"
-        alt=""
-        aria-hidden="true"
-        height={h}
-        loading="eager"
-        className={cn(imgCls, 'hidden dark:block')}
       />
     </div>
   )
