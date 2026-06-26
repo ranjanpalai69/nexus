@@ -24,6 +24,7 @@ export async function GET(req: Request) {
         .select('id, username, full_name, avatar_url, bio, is_verified, followers_count, location')
         .or(`username.ilike.%${q}%,full_name.ilike.%${q}%`)
         .neq('id', user.id)
+        .eq('email_confirmed', true)
         .order('followers_count', { ascending: false })
         .limit(limit)
 

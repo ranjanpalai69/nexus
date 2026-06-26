@@ -59,6 +59,7 @@ export async function POST(req: Request) {
       username,
       full_name: fullName,
       avatar_url: null,
+      email_confirmed: false,   // must verify OTP before accessing the platform
     }, { onConflict: 'id' })
 
     if (profileError) {

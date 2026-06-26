@@ -41,6 +41,7 @@ export async function GET() {
           .select('id, username, full_name, avatar_url, bio, is_verified, followers_count, location')
           .ilike('location', `%${cityToken}%`)
           .not('id', 'in', excludeFilter)
+          .eq('email_confirmed', true)
           .order('followers_count', { ascending: false })
           .limit(10)
 
@@ -57,7 +58,7 @@ export async function GET() {
     if (myFollowingList.length > 0) {
       const { data: fof } = await adminClient
         .from('follows')
-        .select('following_id, suggested:profiles!follows_following_id_fkey(id, username, full_name, avatar_url, bio, is_verified, followers_count, location)')
+        .select('following_id, suggested:profiles!follows_following_id_fkey(id, username, full_name, avatar_url, bio, is_verified, followers_count, location, email_confirmed)')
         .in('follower_id', myFollowingList.slice(0, 20))
         .not('following_id', 'in', excludeFilter)
         .limit(40)
@@ -67,10 +68,11 @@ export async function GET() {
         fofCount[following_id] = (fofCount[following_id] ?? 0) + 1
       })
 
-      // Deduplicate by following_id
+      // Deduplicate by following_id; skip unconfirmed users
       const seen = new Set<string>()
       fof?.forEach(({ following_id, suggested }) => {
         if (!suggested || seen.has(following_id)) return
+        if (!(suggested as any).email_confirmed) return
         seen.add(following_id)
         const mutualCount = fofCount[following_id] ?? 1
         const score = mutualCount * 20
@@ -88,6 +90,7 @@ export async function GET() {
         .from('profiles')
         .select('id, username, full_name, avatar_url, bio, is_verified, followers_count, location')
         .not('id', 'in', `(${existingSuggestedIds.join(',')})`)
+        .eq('email_confirmed', true)
         .order('followers_count', { ascending: false })
         .limit(10)
 

@@ -38,8 +38,10 @@ export async function POST(req: Request) {
       .eq('id', record.id)
 
     if (record.user_id) {
+      // Mark email as confirmed in Supabase Auth and in the profiles table
       await adminClient.auth.admin.updateUserById(record.user_id, { email_confirm: true })
       const { data: profile } = await adminClient.from('profiles').select('full_name').eq('id', record.user_id).single()
+      await adminClient.from('profiles').update({ email_confirmed: true }).eq('id', record.user_id)
       sendWelcomeEmail(email, profile?.full_name || 'there').catch(console.error)
     }
 
