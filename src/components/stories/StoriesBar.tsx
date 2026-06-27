@@ -54,11 +54,7 @@ export function StoriesBar() {
               onClick={() => setUploadOpen(true)}
               className="relative h-16 w-16 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center bg-muted"
             >
-              {user.avatar_url ? (
-                <UserAvatar user={user} size="lg" className="opacity-60" />
-              ) : (
-                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center" />
-              )}
+              <UserAvatar user={user} size="lg" className="h-16 w-16 opacity-70" />
               <div className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-primary flex items-center justify-center border-2 border-card">
                 <FontAwesomeIcon icon={faPlus} className="h-2.5 w-2.5 text-white" />
               </div>

@@ -86,11 +86,16 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
 
       {/* Avatar & Actions */}
       <div className="px-4 md:px-6">
-        <div className="flex items-end justify-between -mt-10 md:-mt-14 mb-4">
-          <div className="ring-4 ring-card rounded-full">
+        {/* Avatar row */}
+        <div className="-mt-10 md:-mt-14 mb-3">
+          <div className="ring-4 ring-card rounded-full w-fit">
             <UserAvatar user={profile} size="xl" showOnline className="ring-4 ring-card" />
           </div>
-          <div className="flex gap-2 mt-2 flex-wrap justify-end">
+        </div>
+
+        {/* Action buttons — below avatar */}
+        <div className="flex justify-end mb-3">
+          <div className="flex gap-2 flex-wrap justify-end">
             {profile.is_own ? (
               <Link href="/settings/profile">
                 <Button variant="outline" size="sm" className="gap-2 h-8 sm:h-9">
