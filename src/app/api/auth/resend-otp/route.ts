@@ -4,12 +4,12 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { adminClient } from '@/lib/supabase/server'
 import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/email/sender'
-import { generateOTP } from '@/lib/utils/helpers'
+import { generateOTP } from '@/lib/utils/otp'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 
 const schema = z.object({
   email: z.string().email(),
-  type: z.enum(['email_verification', 'password_reset']),
+  type:  z.enum(['email_verification', 'password_reset']),
 })
 
 export async function POST(req: Request) {
@@ -20,29 +20,19 @@ export async function POST(req: Request) {
 
     const { email, type } = schema.parse(await req.json())
 
+    // Look up name for personalised email (best-effort)
     const { data: profile } = await adminClient
       .from('profiles')
-      .select('id, full_name')
-      .eq('email', email)
-      .single()
+      .select('full_name')
+      .eq('email', email.toLowerCase())
+      .maybeSingle()
 
-    if (profile) {
-      const code = generateOTP(6)
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+    const code = generateOTP(email, type)
 
-      await adminClient.from('verification_codes').insert({
-        email,
-        user_id: profile.id,
-        code,
-        type,
-        expires_at: expiresAt,
-      })
-
-      if (type === 'email_verification') {
-        sendVerificationEmail(email, code, profile.full_name || undefined).catch(console.error)
-      } else {
-        sendPasswordResetEmail(email, code).catch(console.error)
-      }
+    if (type === 'email_verification') {
+      sendVerificationEmail(email, code, profile?.full_name || undefined).catch(console.error)
+    } else {
+      sendPasswordResetEmail(email, code).catch(console.error)
     }
 
     return NextResponse.json({ success: true })

@@ -3,11 +3,23 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { adminClient } from '@/lib/supabase/server'
+import { generateOTP } from '@/lib/utils/otp'
 import { sendPasswordResetEmail } from '@/lib/email/sender'
-import { generateOTP } from '@/lib/utils/helpers'
 import { rateLimit, rateLimitResponse } from '@/lib/utils/rateLimit'
 
 const schema = z.object({ email: z.string().email() })
+
+async function userExistsByEmail(email: string): Promise<boolean> {
+  const { data: profile } = await adminClient
+    .from('profiles')
+    .select('id')
+    .eq('email', email.toLowerCase())
+    .maybeSingle()
+  if (profile) return true
+
+  const { data: { users } } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  return users.some((u) => u.email?.toLowerCase() === email.toLowerCase())
+}
 
 export async function POST(req: Request) {
   try {
@@ -17,32 +29,15 @@ export async function POST(req: Request) {
 
     const { email } = schema.parse(await req.json())
 
-    // Look up user via profiles table (email indexed)
-    const { data: profile } = await adminClient
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .single()
-
-    if (profile) {
-      const code = generateOTP(6)
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-
-      await adminClient.from('verification_codes').insert({
-        email,
-        user_id: profile.id,
-        code,
-        type: 'password_reset',
-        expires_at: expiresAt,
-      })
-
-      // Fire-and-forget — don't block the response on SMTP
+    // Always return success to not reveal whether email exists
+    const exists = await userExistsByEmail(email)
+    if (exists) {
+      const code = generateOTP(email, 'password_reset')
       sendPasswordResetEmail(email, code).catch((err) => {
-        console.error('[forgot-password] sendMail failed:', err)
+        console.error('[forgot-password] email failed:', err instanceof Error ? err.message : err)
       })
     }
 
-    // Always return success to not reveal if email exists
     return NextResponse.json({ success: true })
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
