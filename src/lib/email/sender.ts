@@ -1,3 +1,4 @@
+import { Resend } from 'resend'
 import nodemailer from 'nodemailer'
 
 function baseTemplate(content: string) {
@@ -29,71 +30,84 @@ function baseTemplate(content: string) {
 </html>`
 }
 
+/**
+ * Deliver email via Resend (HTTP API — works from any cloud host) when
+ * RESEND_API_KEY is set, else fall back to Gmail SMTP (works locally).
+ *
+ * Gmail SMTP is blocked by Google on most cloud hosting IPs, which is
+ * why Resend is used for production deployments on Render / Railway / etc.
+ */
 async function deliver(to: string, subject: string, html: string): Promise<void> {
+  const resendKey = process.env.RESEND_API_KEY
+
+  // ── Primary: Resend HTTP API ────────────────────────────────────────────
+  if (resendKey) {
+    const resend = new Resend(resendKey)
+    const { error } = await resend.emails.send({
+      from: 'Nexus <onboarding@resend.dev>',
+      to:   [to],
+      subject,
+      html,
+    })
+    if (error) throw new Error(`Resend: ${error.message}`)
+    console.log(`[email] sent via Resend → ${to}`)
+    return
+  }
+
+  // ── Fallback: Gmail SMTP (for local dev) ───────────────────────────────
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
-
   if (!user || !pass) {
-    throw new Error('GMAIL_USER or GMAIL_APP_PASSWORD env vars not set')
+    throw new Error('No email provider configured. Set RESEND_API_KEY (production) or GMAIL_USER + GMAIL_APP_PASSWORD (local dev).')
   }
 
   const configs = [
-    { port: 465, secure: true,  label: 'SSL-465'      },
-    { port: 587, secure: false, label: 'STARTTLS-587'  },
-  ] as const
-
-  let lastErr: Error = new Error('SMTP delivery failed')
-
+    { port: 465 as const, secure: true  as const, label: 'SSL-465'     },
+    { port: 587 as const, secure: false as const, label: 'STARTTLS-587' },
+  ]
+  let lastErr = new Error('SMTP failed')
   for (const { port, secure, label } of configs) {
     try {
-      const transport = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port,
-        secure,
+      const t = nodemailer.createTransport({
+        host: 'smtp.gmail.com', port, secure,
         auth: { user, pass },
-        connectionTimeout: 12_000,
-        greetingTimeout: 8_000,
-        socketTimeout: 12_000,
+        connectionTimeout: 12_000, greetingTimeout: 8_000, socketTimeout: 12_000,
       })
-      await transport.sendMail({ from: `Nexus <${user}>`, to, subject, html })
-      console.log(`[email] sent via ${label} → ${to}`)
+      await t.sendMail({ from: `Nexus <${user}>`, to, subject, html })
+      console.log(`[email] sent via SMTP ${label} → ${to}`)
       return
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err))
-      console.error(`[email] ${label} failed: ${lastErr.message}`)
+      console.error(`[email] SMTP ${label} failed: ${lastErr.message}`)
     }
   }
-
   throw lastErr
 }
 
 export async function sendVerificationEmail(email: string, code: string, name?: string) {
-  const content = `
+  await deliver(email, 'Verify your Nexus account', baseTemplate(`
     <p>Hey ${name || 'there'},</p>
     <p>Use the code below to verify your <strong>Nexus</strong> account. Valid for <strong>15 minutes</strong>.</p>
     <div class="box"><div class="code">${code}</div></div>
     <p style="color:#64748b;font-size:13px">Didn't sign up? Ignore this email.</p>
-  `
-  await deliver(email, 'Verify your Nexus account', baseTemplate(content))
+  `))
 }
 
 export async function sendPasswordResetEmail(email: string, code: string) {
-  const content = `
+  await deliver(email, 'Reset your Nexus password', baseTemplate(`
     <p>You requested a password reset for your Nexus account.</p>
     <p>Use this code — valid for <strong>15 minutes</strong>.</p>
     <div class="box"><div class="code">${code}</div></div>
-    <p style="color:#64748b;font-size:13px">Didn't request this? Your account is safe — ignore this email.</p>
-  `
-  await deliver(email, 'Reset your Nexus password', baseTemplate(content))
+    <p style="color:#64748b;font-size:13px">Didn't request this? Ignore this email.</p>
+  `))
 }
 
 export async function sendWelcomeEmail(email: string, name: string) {
-  const content = `
+  await deliver(email, 'Welcome to Nexus!', baseTemplate(`
     <p>Hi ${name},</p>
     <p>Your account is verified and ready. Welcome to <strong>Nexus</strong>!</p>
     <div style="text-align:center;margin-top:24px">
       <a href="${process.env.NEXT_PUBLIC_APP_URL}/feed" class="btn">Open Nexus</a>
     </div>
-  `
-  await deliver(email, 'Welcome to Nexus!', baseTemplate(content))
+  `))
 }
