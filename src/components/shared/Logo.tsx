@@ -20,18 +20,18 @@ export function Logo({ size = 'md', variant = 'full', className }: LogoProps) {
       className={cn('relative shrink-0 select-none', className)}
       style={{ width: containerW, height: h }}
     >
-      {/* Light mode — show black logo */}
+      {/* Light mode: dark wordmark */}
       <img
-        src="/Nexus-Black.png"
+        src="/logo-light.svg"
         alt="Nexus"
         style={{ height: h, width: 'auto', position: 'absolute', top: 0, left: 0 }}
         className="block dark:hidden"
         loading="eager"
         draggable={false}
       />
-      {/* Dark mode — show white logo */}
+      {/* Dark mode: white wordmark */}
       <img
-        src="/Nexus-White.png"
+        src="/logo-dark.svg"
         alt="Nexus"
         style={{ height: h, width: 'auto', position: 'absolute', top: 0, left: 0 }}
         className="hidden dark:block"
