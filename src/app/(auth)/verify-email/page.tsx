@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Mail, ArrowLeft, RefreshCw, Loader2, CheckCircle } from 'lucide-react'
@@ -18,29 +18,29 @@ function VerifyEmailContent() {
   const [done, setDone] = useState(false)
   const [otpComplete, setOtpComplete] = useState(false)
   const otpRef = useRef('')
+  const autoFired = useRef(false)
   const supabase = createClient()
 
-  const handleVerify = async () => {
-    if (!otpComplete) {
-      toast.error('Please enter the complete 6-digit code')
-      return
-    }
+  const handleVerify = async (code?: string) => {
+    const otp = code ?? otpRef.current
+    if (!otp || otp.length !== 6) return
+    if (loading || done) return
     setLoading(true)
     try {
       const res = await fetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: otpRef.current }),
+        body: JSON.stringify({ email, code: otp }),
       })
       const result = await res.json()
       if (!res.ok) {
         toast.error(result.error || 'Invalid code. Please try again.')
+        autoFired.current = false // allow retry
         return
       }
 
       setDone(true)
 
-      // Sign in using temporarily stored credentials from signup
       try {
         const stored = sessionStorage.getItem('nexus_pending_signup')
         if (stored) {
@@ -59,14 +59,28 @@ function VerifyEmailContent() {
       router.push('/login')
     } catch {
       toast.error('Verification failed. Please try again.')
+      autoFired.current = false
     } finally {
       setLoading(false)
     }
   }
 
+  // Auto-submit when all 6 digits entered
+  useEffect(() => {
+    if (!otpComplete) {
+      autoFired.current = false
+      return
+    }
+    if (done || autoFired.current) return
+    autoFired.current = true
+    handleVerify()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otpComplete])
+
   const handleResend = async () => {
     if (!email || resending) return
     setResending(true)
+    autoFired.current = false
     try {
       await fetch('/api/auth/resend-otp', {
         method: 'POST',
@@ -108,14 +122,12 @@ function VerifyEmailContent() {
       transition={{ duration: 0.4, ease: 'easeOut' }}
       className="space-y-6"
     >
-      {/* Icon */}
       <div className="flex justify-center">
         <div className="h-20 w-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-600/20 border border-purple-500/20">
           <Mail className="h-9 w-9 text-primary" />
         </div>
       </div>
 
-      {/* Heading */}
       <div className="space-y-2 text-center">
         <h2 className="text-2xl font-bold text-foreground tracking-tight">Verify your email</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
@@ -124,7 +136,6 @@ function VerifyEmailContent() {
         </p>
       </div>
 
-      {/* OTP boxes */}
       <OtpInput
         onChange={code => {
           otpRef.current = code
@@ -133,20 +144,28 @@ function VerifyEmailContent() {
         disabled={loading}
       />
 
-      <button
-        type="button"
-        onClick={handleVerify}
-        disabled={loading || !otpComplete}
-        className={cn(
-          'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-          'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
-          'transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none'
-        )}
-      >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Email'}
-      </button>
+      {loading && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Verifying...
+        </div>
+      )}
 
-      {/* Resend */}
+      {!loading && (
+        <button
+          type="button"
+          onClick={() => handleVerify()}
+          disabled={!otpComplete}
+          className={cn(
+            'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
+            'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
+            'transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none'
+          )}
+        >
+          Verify Email
+        </button>
+      )}
+
       <div className="text-center space-y-1">
         <p className="text-xs text-muted-foreground">Didn&apos;t receive the code?</p>
         <button

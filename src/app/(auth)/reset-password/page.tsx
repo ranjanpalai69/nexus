@@ -1,11 +1,11 @@
 'use client'
-import { Suspense, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { Lock, Eye, EyeOff, ArrowRight, Loader2, ArrowLeft } from 'lucide-react'
+import { Lock, Eye, EyeOff, ArrowRight, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils/cn'
@@ -54,7 +54,9 @@ function ResetPasswordContent() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [otpComplete, setOtpComplete] = useState(false)
+  const [otpValid, setOtpValid] = useState(false)
   const otpRef = useRef('')
+  const autoFired = useRef(false)
   const supabase = createClient()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -72,13 +74,46 @@ function ResetPasswordContent() {
     )
   }
 
-  const handleOtpContinue = () => {
+  // Validate OTP against server, then advance
+  const handleOtpValidate = async (code?: string) => {
+    const otp = code ?? otpRef.current
+    if (!otp || otp.length !== 6) return
+    if (loading) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/validate-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'password_reset', code: otp }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        toast.error(result.error || 'Invalid or expired code')
+        autoFired.current = false
+        return
+      }
+      setOtpValid(true)
+      // Brief success flash then advance
+      setTimeout(() => setStep('password'), 600)
+    } catch {
+      toast.error('Verification failed. Please try again.')
+      autoFired.current = false
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-submit OTP when all 6 digits entered
+  useEffect(() => {
     if (!otpComplete) {
-      toast.error('Please enter the complete 6-digit code')
+      autoFired.current = false
       return
     }
-    setStep('password')
-  }
+    if (otpValid || autoFired.current) return
+    autoFired.current = true
+    handleOtpValidate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otpComplete])
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -91,19 +126,17 @@ function ResetPasswordContent() {
       const result = await res.json()
       if (!res.ok) {
         toast.error(result.error || 'Failed to reset password')
-        if (result.error?.includes('Invalid') || result.error?.includes('expired')) {
-          // Go back to OTP step so user can request a new code
+        if (result.error?.toLowerCase().includes('invalid') || result.error?.toLowerCase().includes('expired')) {
           setStep('otp')
-          otpRef.current = ''
+          setOtpValid(false)
           setOtpComplete(false)
+          autoFired.current = false
+          otpRef.current = ''
         }
         return
       }
 
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: data.password,
-      })
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: data.password })
       if (signInError) {
         toast.success('Password reset! Please sign in.')
         router.push('/login')
@@ -143,20 +176,36 @@ function ResetPasswordContent() {
           disabled={loading}
         />
 
-        <motion.button
-          type="button"
-          onClick={handleOtpContinue}
-          disabled={!otpComplete}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          className={cn(
-            'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-            'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
-            'transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none'
-          )}
-        >
-          Continue <ArrowRight className="h-4 w-4" />
-        </motion.button>
+        {/* Status feedback */}
+        {loading && (
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Verifying code...
+          </div>
+        )}
+        {otpValid && !loading && (
+          <div className="flex items-center justify-center gap-2 text-sm text-green-500">
+            <CheckCircle2 className="h-4 w-4" />
+            Code verified!
+          </div>
+        )}
+
+        {!loading && !otpValid && (
+          <motion.button
+            type="button"
+            onClick={() => handleOtpValidate()}
+            disabled={!otpComplete}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className={cn(
+              'w-full h-11 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
+              'nexus-gradient hover:opacity-90 text-white shadow-lg shadow-purple-500/25',
+              'transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none'
+            )}
+          >
+            Continue <ArrowRight className="h-4 w-4" />
+          </motion.button>
+        )}
 
         <Link
           href="/forgot-password"
@@ -228,7 +277,7 @@ function ResetPasswordContent() {
 
       <button
         type="button"
-        onClick={() => setStep('otp')}
+        onClick={() => { setStep('otp'); setOtpValid(false); setOtpComplete(false); autoFired.current = false; otpRef.current = '' }}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="h-3.5 w-3.5" />

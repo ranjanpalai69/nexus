@@ -37,12 +37,21 @@ export function LoginForm() {
         password: data.password,
       })
       if (error) {
-        if (error.message.toLowerCase().includes('email not confirmed')) {
+        const msg = error.message.toLowerCase()
+        if (msg.includes('email not confirmed')) {
           toast.error('Please verify your email first')
           router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
           return
         }
-        toast.error(error.message)
+        if (msg.includes('invalid login credentials') || msg.includes('invalid credentials') || msg.includes('wrong password')) {
+          toast.error('Incorrect email or password')
+          return
+        }
+        if (msg.includes('too many requests') || msg.includes('rate limit')) {
+          toast.error('Too many attempts. Please wait and try again.')
+          return
+        }
+        toast.error('Sign in failed. Please try again.')
         return
       }
       router.push('/feed')

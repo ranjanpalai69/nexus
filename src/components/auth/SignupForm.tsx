@@ -30,7 +30,7 @@ export function SignupForm() {
   const router = useRouter()
   const supabase = createClient()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setError, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
@@ -52,7 +52,14 @@ export function SignupForm() {
       try { result = await res.json() } catch { /* non-JSON body */ }
 
       if (!res.ok) {
-        toast.error(result.error || 'Sign up failed. Please try again.')
+        const msg = result.error || 'Sign up failed. Please try again.'
+        if (msg.toLowerCase().includes('username')) {
+          setError('username', { message: msg })
+        } else if (msg.toLowerCase().includes('email')) {
+          setError('email', { message: msg })
+        } else {
+          toast.error(msg)
+        }
         return
       }
 
