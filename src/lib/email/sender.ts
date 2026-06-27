@@ -1,4 +1,3 @@
-import { Resend } from 'resend'
 import nodemailer from 'nodemailer'
 
 function baseTemplate(content: string) {
@@ -30,36 +29,34 @@ function baseTemplate(content: string) {
 </html>`
 }
 
-/**
- * Deliver email via Resend (HTTP API — works from any cloud host) when
- * RESEND_API_KEY is set, else fall back to Gmail SMTP (works locally).
- *
- * Gmail SMTP is blocked by Google on most cloud hosting IPs, which is
- * why Resend is used for production deployments on Render / Railway / etc.
- */
-async function deliver(to: string, subject: string, html: string): Promise<void> {
-  const resendKey = process.env.RESEND_API_KEY
-
-  // ── Primary: Resend HTTP API ────────────────────────────────────────────
-  if (resendKey) {
-    const resend = new Resend(resendKey)
-    const { error } = await resend.emails.send({
-      from: 'Nexus <onboarding@resend.dev>',
-      to:   [to],
+async function deliverViaBrevo(to: string, subject: string, html: string): Promise<void> {
+  const apiKey = process.env.BREVO_API_KEY!
+  // BREVO_SENDER must be a verified sender in your Brevo account (Settings → Senders)
+  const senderEmail = process.env.BREVO_SENDER || process.env.GMAIL_USER || 'noreply@nexus.app'
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Nexus', email: senderEmail },
+      to: [{ email: to }],
       subject,
-      html,
-    })
-    if (error) throw new Error(`Resend: ${error.message}`)
-    console.log(`[email] sent via Resend → ${to}`)
-    return
+      htmlContent: html,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Brevo ${res.status}: ${body}`)
   }
+  console.log(`[email] sent via Brevo → ${to}`)
+}
 
-  // ── Fallback: Gmail SMTP (for local dev) ───────────────────────────────
+async function deliverViaSmtp(to: string, subject: string, html: string): Promise<void> {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
-  if (!user || !pass) {
-    throw new Error('No email provider configured. Set RESEND_API_KEY (production) or GMAIL_USER + GMAIL_APP_PASSWORD (local dev).')
-  }
+  if (!user || !pass) throw new Error('No SMTP credentials configured.')
 
   const configs = [
     { port: 465 as const, secure: true  as const, label: 'SSL-465'     },
@@ -82,6 +79,19 @@ async function deliver(to: string, subject: string, html: string): Promise<void>
     }
   }
   throw lastErr
+}
+
+/**
+ * Deliver email:
+ *   1. Brevo HTTP API  (BREVO_API_KEY set — works from any cloud host, no domain required)
+ *   2. Gmail SMTP      (local dev fallback — blocked on Render/cloud IPs)
+ */
+async function deliver(to: string, subject: string, html: string): Promise<void> {
+  if (process.env.BREVO_API_KEY) {
+    await deliverViaBrevo(to, subject, html)
+    return
+  }
+  await deliverViaSmtp(to, subject, html)
 }
 
 export async function sendVerificationEmail(email: string, code: string, name?: string) {
