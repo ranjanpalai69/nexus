@@ -48,8 +48,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="relative bg-card/80 dark:bg-card/50 backdrop-blur-2xl border border-border/50 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/5 dark:shadow-black/50">
             {/* Top gradient line */}
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-t-2xl" />
-            {/* Corner glow */}
-            <div className="absolute top-0 right-0 h-48 w-48 bg-gradient-to-bl from-primary/[0.07] to-transparent rounded-tr-2xl pointer-events-none" />
             <div className="relative">{children}</div>
           </div>
 
