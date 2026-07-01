@@ -53,22 +53,14 @@ export async function POST(req: Request) {
 
     const userId = authData.user.id
 
-    // Upsert profile — gracefully ignore unknown column errors
-    await adminClient.from('profiles').upsert(
-      { id: userId, email, username, full_name: fullName, avatar_url: null, email_confirmed: false },
+    // Upsert profile row
+    const { error: profileError } = await adminClient.from('profiles').upsert(
+      { id: userId, email, username, full_name: fullName, avatar_url: null },
       { onConflict: 'id' }
-    ).then(({ error }) => {
-      if (error) {
-        // email_confirmed column may not exist yet — retry without it
-        if (error.message?.includes('email_confirmed')) {
-          return adminClient.from('profiles').upsert(
-            { id: userId, email, username, full_name: fullName, avatar_url: null },
-            { onConflict: 'id' }
-          )
-        }
-        console.warn('[signup] profile upsert:', error.message)
-      }
-    })
+    )
+    if (profileError) {
+      console.warn('[signup] profile upsert:', profileError.message)
+    }
 
     // Generate HMAC OTP (no database table required)
     const code = generateOTP(email, 'email_verification')

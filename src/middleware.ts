@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   '/api/auth/validate-otp',
   '/api/auth/callback',
   '/api/health',
+  '/api/mobile-push',
 ]
 
 export async function middleware(request: NextRequest) {
